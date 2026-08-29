@@ -67,7 +67,7 @@ button,input,textarea{font:inherit}
 
 .section-heading{display:grid;grid-template-columns:1.1fr .9fr;gap:80px;align-items:end;margin-bottom:58px}
 .section-heading.compact{grid-template-columns:1fr}
-.section-heading h2,.about-copy h2,.business-intro h2,.contact-copy h2{font-size:clamp(35px,5vw,58px);line-height:1.08;letter-spacing:-.04em}
+.section-heading h2,.about-copy h2,.contact-copy h2{font-size:clamp(35px,5vw,58px);line-height:1.08;letter-spacing:-.04em}
 .section-heading p{color:var(--muted);font-size:15px;line-height:1.9;max-width:560px;justify-self:end}
 
 .services{background:#070707}
@@ -88,31 +88,23 @@ button,input,textarea{font:inherit}
 .project-overlay h3{font-size:20px;margin-top:8px;line-height:1.35}
 
 .about{background:#070707}
-.about-layout{display:grid;grid-template-columns:1.28fr .72fr;gap:26px;align-items:stretch}
-.about-copy{padding:50px;border:1px solid var(--line);border-radius:30px;background:linear-gradient(145deg,#0c0c0d,#080808)}
-.about-copy p{color:var(--muted);line-height:1.9;font-size:15px;margin-top:22px;max-width:800px}
+.about-shell{display:grid;grid-template-columns:1.18fr .82fr;gap:20px;align-items:stretch}
+.about-copy{padding:54px;border:1px solid var(--line);border-radius:30px;background:linear-gradient(145deg,#0c0c0d,#080808)}
+.about-copy p{color:var(--muted);line-height:1.9;font-size:15px;margin-top:22px;max-width:810px}
 .about-points{display:flex;flex-wrap:wrap;gap:9px;margin-top:32px}
 .about-points span{font-size:12px;color:#c5c5c8;border:1px solid var(--line);border-radius:999px;padding:9px 12px;background:#0b0b0c}
-.founder-card{padding:40px;border:1px solid rgba(255,23,56,.23);border-radius:30px;background:radial-gradient(circle at top right,rgba(255,23,56,.14),transparent 38%),#0b0b0c;display:flex;flex-direction:column;justify-content:flex-end;min-height:430px}
-.mini-label{font-size:11px;letter-spacing:.16em;color:#ff647a;font-weight:700;margin-bottom:auto}
-.founder-card h3{font-size:32px;letter-spacing:-.04em;margin-bottom:15px}
-.founder-card p{font-size:13px;line-height:1.8;color:#aaaab0}
-.founder-card a{margin-top:25px;text-decoration:none;font-size:13px;font-weight:600;color:#fff;display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:20px}
-.founder-card a span{color:#ff647a}
-
-.business-shell{border:1px solid var(--line);border-radius:32px;background:linear-gradient(145deg,#0d0d0e,#080808);padding:52px}
-.business-intro{display:grid;grid-template-columns:1.1fr .9fr;column-gap:70px;align-items:end;margin-bottom:45px}
-.business-intro .eyebrow{grid-column:1/-1}
-.business-intro p{color:var(--muted);line-height:1.85;font-size:14px;max-width:520px;justify-self:end}
-.verification-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-.verification-card{display:flex;gap:18px;padding:25px;border-radius:22px;border:1px solid var(--line);background:#090909}
-.verification-icon{width:34px;height:34px;border-radius:999px;display:grid;place-items:center;flex:0 0 auto;background:rgba(255,23,56,.11);border:1px solid rgba(255,23,56,.28);color:#ff5e75;font-weight:700}
-.verification-card span{display:block;color:#74747b;font-size:10px;font-weight:700;letter-spacing:.13em;margin-bottom:7px}
-.verification-card h3{font-size:18px;margin-bottom:8px}
-.verification-card p{font-size:12px;line-height:1.7;color:#9e9ea4}
-.verification-note{margin-top:18px;display:grid;grid-template-columns:auto 1fr;gap:16px;padding:20px 22px;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:rgba(255,255,255,.02)}
-.verification-note strong{font-size:12px;color:#ddd;white-space:nowrap}
-.verification-note span{font-size:12px;color:#909097;line-height:1.7}
+.founder-reference{display:flex;align-items:center;gap:14px;margin-top:42px;padding-top:22px;border-top:1px solid var(--line);font-size:12px}
+.founder-reference>span{color:#73737a;text-transform:uppercase;letter-spacing:.12em;font-weight:700}
+.founder-reference a{color:#f0f0f2;text-decoration:none;font-weight:600}
+.founder-reference a:hover{color:#fff}
+.founder-reference b{color:#ff647a;font-weight:600;margin-left:4px}
+.principles-panel{padding:42px;border:1px solid var(--line);border-radius:30px;background:radial-gradient(circle at top right,rgba(255,23,56,.1),transparent 34%),#0a0a0b;display:flex;flex-direction:column}
+.mini-label{font-size:11px;letter-spacing:.16em;color:#ff647a;font-weight:700;margin-bottom:32px}
+.principle{display:grid;grid-template-columns:42px 1fr;gap:16px;padding:24px 0;border-top:1px solid var(--line)}
+.principle:first-of-type{border-top:0}
+.principle strong{font-size:11px;color:#66666d;letter-spacing:.1em;padding-top:5px}
+.principle h3{font-size:18px;letter-spacing:-.02em;margin-bottom:7px}
+.principle p{font-size:12px;line-height:1.75;color:#96969d}
 
 .contact{background:#070707}
 .contact-layout{display:grid;grid-template-columns:.86fr 1.14fr;gap:70px;align-items:start}
@@ -154,19 +146,17 @@ button,input,textarea{font:inherit}
     .service-grid{grid-template-columns:repeat(2,1fr)}
     .project-grid{grid-template-columns:1fr 1fr}
     .project-card:last-child{grid-column:1/-1}
-    .about-layout{grid-template-columns:1fr}
-    .founder-card{min-height:330px}
+    .about-shell{grid-template-columns:1fr}
 }
 
 @media(max-width:860px){
     .section{padding:88px 0}
     .nav-links,.quote-btn{display:none}
     .menu-toggle{display:block}
-    .section-heading,.business-intro,.contact-layout{grid-template-columns:1fr;gap:24px}
-    .section-heading p,.business-intro p{justify-self:start}
+    .section-heading,.contact-layout{grid-template-columns:1fr;gap:24px}
+    .section-heading p{justify-self:start}
     .trust-grid{grid-template-columns:1fr 1fr}
     .trust-grid>div{border-bottom:1px solid var(--line)}
-    .verification-grid{grid-template-columns:1fr}
     .contact-copy{position:static}
     .footer-grid{grid-template-columns:1.4fr .8fr .8fr;gap:35px}
 }
@@ -189,11 +179,8 @@ button,input,textarea{font:inherit}
     .service-card{min-height:245px;padding:25px}
     .service-card h3{margin-top:40px}
     .project-card{min-height:340px}
-    .about-copy,.business-shell{padding:28px;border-radius:24px}
-    .founder-card{padding:30px;border-radius:24px;min-height:340px}
-    .verification-card{padding:20px}
-    .verification-note{grid-template-columns:1fr;gap:7px}
-    .verification-note strong{white-space:normal}
+    .about-copy,.principles-panel{padding:28px;border-radius:24px}
+    .founder-reference{align-items:flex-start;flex-direction:column;gap:8px}
     .contact-form{padding:22px;border-radius:22px}
     .footer-grid{grid-template-columns:1fr;gap:32px;padding-bottom:38px}
     .footer-bottom{display:grid;gap:8px}

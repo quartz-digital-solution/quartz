@@ -58,7 +58,7 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     });
 });
 
-const revealTargets = document.querySelectorAll('.service-card, .project-card, .about-copy, .founder-card, .verification-card, .contact-form');
+const revealTargets = document.querySelectorAll('.service-card, .project-card, .about-copy, .principles-panel, .contact-form');
 revealTargets.forEach(el => el.classList.add('reveal'));
 
 if ('IntersectionObserver' in window) {
