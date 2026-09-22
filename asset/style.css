@@ -189,3 +189,34 @@ button,input,textarea{font:inherit}
 @media(prefers-reduced-motion:reduce){
     *,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}
 }
+
+
+/* SEO-focused internal pages and crawlable service links */
+.service-link{display:inline-flex;margin-top:18px;color:#ff6c82;text-decoration:none;font-size:12px;font-weight:600;line-height:1.5}
+.service-link:hover{color:#fff}
+.contact-inline-link{color:#aaaab0;text-decoration:none;font-size:12px;width:max-content;max-width:100%}
+.contact-inline-link:hover{color:#fff}
+.seo-quote-link{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.seo-page{min-height:70vh}
+.seo-hero{position:relative;overflow:hidden;padding:162px 0 92px;border-bottom:1px solid var(--line)}
+.seo-hero-inner{position:relative;z-index:2;max-width:1050px}
+.seo-hero h1{font-size:clamp(44px,7vw,84px);line-height:1.03;letter-spacing:-.052em;max-width:1000px;margin-bottom:24px}
+.seo-hero p{max-width:800px;color:#b8b8bd;font-size:17px;line-height:1.85;margin-bottom:34px}
+.breadcrumbs{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:28px;color:#77777e;font-size:11px}
+.breadcrumbs a{color:#a9a9af;text-decoration:none}.breadcrumbs a:hover{color:#fff}
+.seo-body{background:#070707}
+.seo-body-grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:54px;align-items:start}
+.seo-article{min-width:0}
+.seo-content-section{padding:0 0 46px;margin:0 0 46px;border-bottom:1px solid var(--line)}
+.seo-content-section:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
+.seo-content-section h2{font-size:clamp(28px,4vw,42px);line-height:1.16;letter-spacing:-.035em;margin-bottom:20px}
+.seo-content-section p{color:#aaaab0;font-size:15px;line-height:1.95;margin:0 0 17px;max-width:820px}
+.seo-content-section a{color:#ff7589;text-decoration:none}.seo-content-section a:hover{color:#fff}
+.seo-content-section ul{display:grid;gap:11px;margin:23px 0 0 18px;color:#c6c6ca;font-size:14px;line-height:1.7}
+.seo-sidebar{position:sticky;top:118px}
+.seo-side-card{border:1px solid var(--line);border-radius:26px;padding:27px;background:#0a0a0b;display:flex;flex-direction:column}
+.seo-side-card h2{font-size:22px;margin:0 0 18px;letter-spacing:-.025em}
+.seo-side-card a{padding:11px 0;border-top:1px solid var(--line);text-decoration:none;color:#adadb4;font-size:12px;line-height:1.45}
+.seo-side-card a:hover{color:#fff}
+@media(max-width:860px){.seo-body-grid{grid-template-columns:1fr}.seo-sidebar{position:static}.seo-hero{padding-top:136px}}
+@media(max-width:600px){.seo-hero{padding:124px 0 70px}.seo-hero h1{font-size:42px}.seo-hero p{font-size:15px}.seo-body-grid{gap:38px}}

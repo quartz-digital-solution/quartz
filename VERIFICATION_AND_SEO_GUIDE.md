@@ -1,53 +1,53 @@
-# Quartz Web Solutions — Verification & Google SEO Guide
+# Quartz Web Solutions — SEO Deployment & Verification Guide
 
-## Public identity used on the website
-- Business name: Quartz Web Solutions
-- Official website: https://quartzsolution.netlify.app/
-- Founder: Sabith Salah KP
-- Founder profile: https://sabith-salah-kp.sabithsalahkp.chatgpt.site/
-- Business Instagram: https://www.instagram.com/quartz_web_solution/
+## SEO identity used in this build
+- Official business name: **Quartz Web Solutions**
+- Common brand form supported: **Quartz Web Solution**
+- Official website: **https://quartzsolution.netlify.app/**
+- Founder: **Sabith Salah K P**
+- Founder name variant supported: **Sabith Salah KP**
+- Founder page: **https://quartzsolution.netlify.app/sabith-salah-kp/**
+- Business Instagram: **https://www.instagram.com/quartz_web_solution/**
 
-## Documents to keep ready for genuine business verification
-Keep these documents in your secure business records. Do not publicly upload PAN, Aadhaar, banking records or merchant KYC files just for SEO.
+## What has already been added to the files
+- Unique title and meta description for the homepage and every SEO landing page.
+- Canonical URLs and index/follow crawler directives.
+- Open Graph and Twitter/X social preview metadata.
+- A 1200×630 Quartz social preview image.
+- Organization, WebSite, WebPage, Person, Service and Breadcrumb structured data where relevant.
+- Dedicated crawlable page for Sabith Salah K P.
+- Dedicated crawlable service pages for website development, web apps, e-commerce, UI/UX and technical SEO/performance.
+- Crawlable internal links from the homepage to important pages.
+- Updated `sitemap.xml` with accurate `lastmod` date for this release.
+- Updated `robots.txt`.
+- Expanded `llms.txt` for clear machine-readable company/entity context.
+- Web manifest, social icons and a noindex 404 page.
+- Netlify `_headers` rules for long-lived static asset caching.
 
-1. Udyam Registration Certificate
-   - Keep the original Udyam certificate / registration PDF.
-   - The business/trade name should consistently match Quartz Web Solutions wherever applicable.
+## Required manual steps after uploading this build
+1. Deploy the **contents of this project root** so `index.html`, `robots.txt` and `sitemap.xml` remain at the website root.
+2. Open these URLs in a browser and confirm they load:
+   - https://quartzsolution.netlify.app/
+   - https://quartzsolution.netlify.app/robots.txt
+   - https://quartzsolution.netlify.app/sitemap.xml
+   - https://quartzsolution.netlify.app/sabith-salah-kp/
+   - https://quartzsolution.netlify.app/services/website-development/
+3. In **Google Search Console**, verify the site, submit `https://quartzsolution.netlify.app/sitemap.xml`, inspect the homepage and the founder page, then request indexing.
+4. In **Bing Webmaster Tools**, add/verify the site and submit the same sitemap. Bing also supports IndexNow for notifying it about changed URLs.
+5. Test the homepage and founder page with Google Rich Results / Schema tools and fix only genuine validation errors.
+6. Keep the exact business name and founder name consistent on legitimate public profiles. Link the founder profile back to Quartz Web Solutions where appropriate.
 
-2. GST Registration Certificate (Form GST REG-06)
-   - Keep the registration certificate showing the legal/trade details.
-   - Use the same business naming consistently on invoices, merchant KYC and public profiles.
+## Important ranking note
+These files make the website technically crawlable, entity-clear and search-friendly, but no SEO file can guarantee a #1 ranking. Search engines also evaluate usefulness, reputation, links/mentions, engagement, competition and time. Do not add hidden keyword blocks or repeat names unnaturally; that can hurt visibility.
 
-3. Proprietor / founder identity proof
-   - PAN and Aadhaar may be requested by government, banking, payment or KYC providers.
-   - Do not publish these documents on the public website.
+## Useful searches to test after indexing
+- `Quartz Web Solutions`
+- `Quartz Web Solution`
+- `Sabith Salah K P`
+- `Sabith Salah KP`
+- `Quartz Web Solutions Sabith Salah`
+- `Quartz Web Solutions website development`
+- `Quartz Web Solutions e-commerce`
 
-4. Business bank / merchant documentation
-   - Merchant onboarding approval or merchant account confirmation.
-   - Business/current-account proof if applicable.
-   - Payment provider KYC approval and settlement bank proof where required.
-
-5. Business contact and address proof when requested
-   - Use only with legitimate providers or official verification processes.
-   - Do not expose a private residential address on the public website unless legally or operationally necessary.
-
-## Google actions after deployment
-1. Deploy this folder to the official Quartz site.
-2. Add the site to Google Search Console and verify ownership.
-3. Inspect the homepage URL and request indexing.
-4. Submit: https://quartzsolution.netlify.app/sitemap.xml
-5. Test the homepage using Google's Rich Results Test / structured-data tools.
-6. Keep the same business name, founder name, website URL and social links consistent on legitimate public profiles.
-7. Link from the founder website back to Quartz Web Solutions as the official company website. This two-way relationship is a useful identity signal.
-
-## What the site intentionally does NOT expose
-- PAN
-- Aadhaar
-- Bank account details
-- Merchant credentials
-- Udyam certificate number
-- GSTIN
-- Private team-member list
-- Private residential address
-
-These can be shared privately with legitimate parties when verification is actually required.
+## Sensitive business verification documents
+Keep PAN, Aadhaar, bank information, GST documents and merchant KYC records private unless a legitimate platform specifically requires them. They do not need to be published publicly for SEO.
