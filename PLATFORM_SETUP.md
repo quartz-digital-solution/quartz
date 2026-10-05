@@ -14,7 +14,7 @@ For every published connected website Quartz automatically:
 - injects canonical URL per page
 - injects Open Graph + Twitter metadata
 - injects specific Schema.org LocalBusiness subtype when selected
-- includes address, postal code, phone, email, opening hours, map, geo coordinates, price range and social profiles in structured data when supplied
+- includes address, postal code, phone, email, opening hours, map and social profiles in structured data when supplied
 - injects WebPage + Breadcrumb structured data for every HTML page
 - removes `meta keywords` because Google Search does not use it
 - inserts the root page and every uploaded HTML page into the live sitemap
@@ -71,8 +71,6 @@ A legacy URL-prefix verification file (`google245e77c7b3a8ba9a.html`) is also in
    - phone, WhatsApp and email
    - opening hours
    - Google Maps URL
-   - latitude/longitude
-   - price range
    - Instagram/Facebook/YouTube URLs
    - real business description
    - primary search phrase + supporting search phrases

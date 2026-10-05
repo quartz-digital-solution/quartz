@@ -101,9 +101,6 @@ async function ensureSchema(env) {
     email TEXT DEFAULT '',
     opening_hours_json TEXT DEFAULT '[]',
     maps_url TEXT DEFAULT '',
-    latitude REAL,
-    longitude REAL,
-    price_range TEXT DEFAULT '',
     instagram_url TEXT DEFAULT '',
     facebook_url TEXT DEFAULT '',
     youtube_url TEXT DEFAULT '',
@@ -127,9 +124,6 @@ async function ensureSchema(env) {
     ['email', `TEXT DEFAULT ''`],
     ['opening_hours_json', `TEXT DEFAULT '[]'`],
     ['maps_url', `TEXT DEFAULT ''`],
-    ['latitude', 'REAL'],
-    ['longitude', 'REAL'],
-    ['price_range', `TEXT DEFAULT ''`],
     ['instagram_url', `TEXT DEFAULT ''`],
     ['facebook_url', `TEXT DEFAULT ''`],
     ['youtube_url', `TEXT DEFAULT ''`]
@@ -155,11 +149,6 @@ function cleanUrl(value) {
     const u = new URL(v.startsWith('http') ? v : `https://${v}`);
     return ['http:','https:'].includes(u.protocol) ? u.toString() : '';
   } catch { return ''; }
-}
-function validCoord(value, min, max) {
-  if (value === '' || value === null || value === undefined) return null;
-  const n = Number(value);
-  return Number.isFinite(n) && n >= min && n <= max ? n : null;
 }
 function normalizeBusinessType(value) {
   const v = String(value || 'LocalBusiness').trim();
@@ -190,9 +179,6 @@ function sanitizeSiteInput(body) {
     email: String(body.email || '').trim().slice(0, 180),
     opening_hours_json: JSON.stringify(parseList(body.opening_hours).slice(0, 30)),
     maps_url: cleanUrl(body.maps_url).slice(0, 500),
-    latitude: validCoord(body.latitude, -90, 90),
-    longitude: validCoord(body.longitude, -180, 180),
-    price_range: String(body.price_range || '').trim().slice(0, 80),
     instagram_url: cleanUrl(body.instagram_url).slice(0, 500),
     facebook_url: cleanUrl(body.facebook_url).slice(0, 500),
     youtube_url: cleanUrl(body.youtube_url).slice(0, 500),
@@ -211,7 +197,7 @@ function rowToSite(row) {
   };
 }
 
-const SITE_COLUMNS = `slug,name,status,logo_path,seo_title,seo_description,primary_keyword,keywords_json,category,business_type,city,district,state,country_code,address,postal_code,phone,whatsapp,email,opening_hours_json,maps_url,latitude,longitude,price_range,instagram_url,facebook_url,youtube_url,business_description,services_json,index_html,deployed_at,created_at,updated_at`;
+const SITE_COLUMNS = `slug,name,status,logo_path,seo_title,seo_description,primary_keyword,keywords_json,category,business_type,city,district,state,country_code,address,postal_code,phone,whatsapp,email,opening_hours_json,maps_url,instagram_url,facebook_url,youtube_url,business_description,services_json,index_html,deployed_at,created_at,updated_at`;
 
 async function handleAdminApi(request, env, url) {
   const pathname = url.pathname;
@@ -252,7 +238,7 @@ async function handleAdminApi(request, env, url) {
     if (!s.name || !s.slug || !s.index_html) return bad('Name, URL slug and index.html are required');
     const now = new Date().toISOString();
     try {
-      const values = [s.slug,s.name,s.status,s.logo_path,s.seo_title,s.seo_description,s.primary_keyword,s.keywords_json,s.category,s.business_type,s.city,s.district,s.state,s.country_code,s.address,s.postal_code,s.phone,s.whatsapp,s.email,s.opening_hours_json,s.maps_url,s.latitude,s.longitude,s.price_range,s.instagram_url,s.facebook_url,s.youtube_url,s.business_description,s.services_json,s.index_html,s.status==='published'?now:null,now,now];
+      const values = [s.slug,s.name,s.status,s.logo_path,s.seo_title,s.seo_description,s.primary_keyword,s.keywords_json,s.category,s.business_type,s.city,s.district,s.state,s.country_code,s.address,s.postal_code,s.phone,s.whatsapp,s.email,s.opening_hours_json,s.maps_url,s.instagram_url,s.facebook_url,s.youtube_url,s.business_description,s.services_json,s.index_html,s.status==='published'?now:null,now,now];
       const marks = values.map(() => '?').join(',');
       const r = await env.DB.prepare(`INSERT INTO connected_sites (${SITE_COLUMNS}) VALUES (${marks}) RETURNING *`).bind(...values).first();
       return json({ ok: true, site: rowToSite(r) }, 201);
@@ -278,8 +264,8 @@ async function handleAdminApi(request, env, url) {
       const now = new Date().toISOString();
       const deployed = s.status === 'published' ? (existing.deployed_at || now) : existing.deployed_at;
       try {
-        const row = await env.DB.prepare(`UPDATE connected_sites SET slug=?,name=?,status=?,logo_path=?,seo_title=?,seo_description=?,primary_keyword=?,keywords_json=?,category=?,business_type=?,city=?,district=?,state=?,country_code=?,address=?,postal_code=?,phone=?,whatsapp=?,email=?,opening_hours_json=?,maps_url=?,latitude=?,longitude=?,price_range=?,instagram_url=?,facebook_url=?,youtube_url=?,business_description=?,services_json=?,index_html=?,deployed_at=?,updated_at=? WHERE id=? RETURNING *`)
-          .bind(s.slug,s.name,s.status,s.logo_path,s.seo_title,s.seo_description,s.primary_keyword,s.keywords_json,s.category,s.business_type,s.city,s.district,s.state,s.country_code,s.address,s.postal_code,s.phone,s.whatsapp,s.email,s.opening_hours_json,s.maps_url,s.latitude,s.longitude,s.price_range,s.instagram_url,s.facebook_url,s.youtube_url,s.business_description,s.services_json,s.index_html,deployed,now,id).first();
+        const row = await env.DB.prepare(`UPDATE connected_sites SET slug=?,name=?,status=?,logo_path=?,seo_title=?,seo_description=?,primary_keyword=?,keywords_json=?,category=?,business_type=?,city=?,district=?,state=?,country_code=?,address=?,postal_code=?,phone=?,whatsapp=?,email=?,opening_hours_json=?,maps_url=?,instagram_url=?,facebook_url=?,youtube_url=?,business_description=?,services_json=?,index_html=?,deployed_at=?,updated_at=? WHERE id=? RETURNING *`)
+          .bind(s.slug,s.name,s.status,s.logo_path,s.seo_title,s.seo_description,s.primary_keyword,s.keywords_json,s.category,s.business_type,s.city,s.district,s.state,s.country_code,s.address,s.postal_code,s.phone,s.whatsapp,s.email,s.opening_hours_json,s.maps_url,s.instagram_url,s.facebook_url,s.youtube_url,s.business_description,s.services_json,s.index_html,deployed,now,id).first();
         return json({ ok: true, site: rowToSite(row) });
       } catch (e) {
         if (String(e).toLowerCase().includes('unique')) return bad('That URL slug is already used', 409);
@@ -468,7 +454,6 @@ function schemaGraph(site, seo, canonical, logo) {
   const openingHours = (()=>{try{return JSON.parse(site.opening_hours_json||'[]')}catch{return[]}})();
   const sameAs = [site.instagram_url,site.facebook_url,site.youtube_url].filter(Boolean);
   const hasAddress = site.address || site.city || site.district || site.postal_code;
-  const hasGeo = Number.isFinite(Number(site.latitude)) && Number.isFinite(Number(site.longitude));
   const business = {
     '@type': normalizeBusinessType(site.business_type),
     '@id': seo.rootCanonical + '#business',
@@ -479,7 +464,6 @@ function schemaGraph(site, seo, canonical, logo) {
     description: site.business_description || seo.description,
     telephone: site.phone || undefined,
     email: site.email || undefined,
-    priceRange: site.price_range || undefined,
     hasMap: site.maps_url || undefined,
     openingHours: openingHours.length ? openingHours : undefined,
     sameAs: sameAs.length ? sameAs : undefined,
@@ -491,7 +475,6 @@ function schemaGraph(site, seo, canonical, logo) {
       postalCode:site.postal_code||undefined,
       addressCountry:site.country_code||'IN'
     } : undefined,
-    geo: hasGeo ? { '@type':'GeoCoordinates', latitude:Number(site.latitude), longitude:Number(site.longitude) } : undefined,
     areaServed:[site.city,site.district,site.state].filter(Boolean),
     knowsAbout:[...new Set([site.primary_keyword,...keywords,...services].filter(Boolean))].slice(0,40),
     hasOfferCatalog: services.length ? {
@@ -525,9 +508,90 @@ function schemaGraph(site, seo, canonical, logo) {
     ]
   };
 }
+function siteLogoUrl(site) {
+  return site.logo_path
+    ? `${BASE_URL}/${site.slug}/${String(site.logo_path).replace(/^\/+/, '')}`
+    : `${BASE_URL}/asset/img/fav/icon-512.png`;
+}
+function siteLogo192Url(site) {
+  return site.logo_path === 'quartz-logo.webp'
+    ? `${BASE_URL}/${site.slug}/quartz-logo-192.webp`
+    : (site.logo_path ? siteLogoUrl(site) : `${BASE_URL}/asset/img/fav/icon-192.png`);
+}
+function logoMimeType(site) {
+  const t = guessType(site.logo_path || 'icon-512.png');
+  return String(t || '').split(';')[0] || 'image/png';
+}
+function connectedManifest(site) {
+  const logo = siteLogoUrl(site);
+  const icon192 = siteLogo192Url(site);
+  const scope = `/${site.slug}/`;
+  const manifest = {
+    id: scope,
+    name: site.name,
+    short_name: String(site.name || 'Website').slice(0, 32),
+    description: site.business_description || site.seo_description || `${site.name} website`,
+    start_url: scope,
+    scope,
+    display: 'standalone',
+    background_color: '#ffffff',
+    theme_color: '#ffffff',
+    lang: 'en-IN',
+    icons: [
+      { src: icon192, sizes: '192x192', type: logoMimeType(site), purpose: 'any' },
+      { src: logo, sizes: '512x512', type: logoMimeType(site), purpose: 'any maskable' }
+    ]
+  };
+  return new Response(JSON.stringify(manifest), {
+    headers: {
+      'content-type': 'application/manifest+json; charset=utf-8',
+      'cache-control': 'public, max-age=60, must-revalidate'
+    }
+  });
+}
+function connectedServiceWorker(site) {
+  const scope = `/${site.slug}/`;
+  const version = String(site.updated_at || site.deployed_at || '1').replace(/[^a-z0-9]/gi, '').slice(-28) || '1';
+  const prefix = `quartz-site-${site.id}-`;
+  const cacheName = `${prefix}${version}`;
+  const code = `
+const CACHE_NAME=${JSON.stringify(cacheName)};
+const CACHE_PREFIX=${JSON.stringify(prefix)};
+const SITE_SCOPE=${JSON.stringify(scope)};
+const CORE=[SITE_SCOPE,SITE_SCOPE+'manifest.webmanifest'];
+self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(CORE)).catch(()=>{}));self.skipWaiting();});
+self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith(CACHE_PREFIX)&&k!==CACHE_NAME).map(k=>caches.delete(k)))));self.clients.claim();});
+self.addEventListener('fetch',event=>{
+  const req=event.request;
+  if(req.method!=='GET')return;
+  const url=new URL(req.url);
+  if(url.origin!==self.location.origin||!url.pathname.startsWith(SITE_SCOPE)||url.pathname.endsWith('/sw.js'))return;
+  event.respondWith((async()=>{
+    try{
+      const fresh=await fetch(req);
+      if(fresh&&fresh.ok){const cache=await caches.open(CACHE_NAME);cache.put(req,fresh.clone()).catch(()=>{});}
+      return fresh;
+    }catch(err){
+      const cached=await caches.match(req);
+      if(cached)return cached;
+      if(req.mode==='navigate')return (await caches.match(SITE_SCOPE))||Response.error();
+      return Response.error();
+    }
+  })());
+});`;
+  return new Response(code, {
+    headers: {
+      'content-type': 'application/javascript; charset=utf-8',
+      'cache-control': 'no-store, must-revalidate',
+      'service-worker-allowed': scope
+    }
+  });
+}
 function injectSeo(site, htmlText, canonical) {
   const seo = pageSeo(site, htmlText, canonical);
-  const logo = site.logo_path ? `${BASE_URL}/${site.slug}/${site.logo_path.replace(/^\/+/, '')}` : `${BASE_URL}/asset/img/og/quartz-web-solutions-og.png`;
+  const logo = siteLogoUrl(site);
+  const manifestUrl = `${BASE_URL}/${site.slug}/manifest.webmanifest`;
+  const swUrl = `/${site.slug}/sw.js`;
   const schemaText = JSON.stringify(schemaGraph(site,seo,canonical,logo)).replace(/<\//g,'<\\/');
   let out = htmlText || '<!doctype html><html><head></head><body></body></html>';
   out = rewriteRootRelative(out, site.slug);
@@ -535,10 +599,13 @@ function injectSeo(site, htmlText, canonical) {
   else if (!/<html[^>]*\slang=/i.test(out)) out = out.replace(/<html([^>]*)>/i,'<html$1 lang="en-IN">');
   if (!/<head[\s>]/i.test(out)) out = out.replace(/<html[^>]*>/i, m => `${m}<head></head>`);
 
+  out = out.replace(/<script[^>]+data-quartz-pwa=["']true["'][^>]*>[\s\S]*?<\/script>\s*/gi,'');
+
   out = out.replace(/<head([^>]*)>([\s\S]*?)<\/head>/i, (whole, attrs, head) => {
-    // Google ignores meta-keywords. Remove it even if an uploaded site already contains one.
     head = head.replace(/<meta\s+[^>]*name=["']keywords["'][^>]*>\s*/gi,'');
     head = head.replace(/<script[^>]+data-quartz-seo=["']true["'][^>]*>[\s\S]*?<\/script>\s*/gi,'');
+    head = head.replace(/<link\b(?=[^>]*\brel=["'][^"']*(?:icon|manifest|apple-touch-icon)[^"']*["'])[^>]*>\s*/gi,'');
+    head = head.replace(/<meta\s+name=["'](?:theme-color|mobile-web-app-capable|apple-mobile-web-app-capable|apple-mobile-web-app-title)["'][^>]*>\s*/gi,'');
     head = replaceOrInsert(head, /<meta\s+charset=["']?[^>]+>/i, '<meta charset="utf-8">');
     head = replaceOrInsert(head, /<meta\s+name=["']viewport["'][^>]*>/i, '<meta name="viewport" content="width=device-width,initial-scale=1">');
     head = replaceOrInsert(head, /<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(seo.title)}</title>`);
@@ -555,9 +622,20 @@ function injectSeo(site, htmlText, canonical) {
     head = replaceOrInsert(head, /<meta\s+name=["']twitter:title["'][^>]*>/i, `<meta name="twitter:title" content="${escapeAttr(seo.title)}">`);
     head = replaceOrInsert(head, /<meta\s+name=["']twitter:description["'][^>]*>/i, `<meta name="twitter:description" content="${escapeAttr(seo.description)}">`);
     head = replaceOrInsert(head, /<meta\s+name=["']twitter:image["'][^>]*>/i, `<meta name="twitter:image" content="${escapeAttr(logo)}">`);
+    head += `\n<link rel="icon" href="${escapeAttr(logo)}">`;
+    head += `\n<link rel="apple-touch-icon" href="${escapeAttr(logo)}">`;
+    head += `\n<link rel="manifest" href="${escapeAttr(manifestUrl)}">`;
+    head += `\n<meta name="theme-color" content="#ffffff">`;
+    head += `\n<meta name="mobile-web-app-capable" content="yes">`;
+    head += `\n<meta name="apple-mobile-web-app-capable" content="yes">`;
+    head += `\n<meta name="apple-mobile-web-app-title" content="${escapeAttr(String(site.name || '').slice(0,32))}">`;
     head += `\n<script type="application/ld+json" data-quartz-seo="true">${schemaText}</script>`;
     return `<head${attrs}>${head}</head>`;
   });
+
+  const register = `<script data-quartz-pwa="true">if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register(${JSON.stringify(swUrl)},{scope:${JSON.stringify(`/${site.slug}/`)}}).catch(()=>{}));}</script>`;
+  if (/<\/body>/i.test(out)) out = out.replace(/<\/body>/i, `${register}</body>`);
+  else out += register;
   return out;
 }
 function escapeHtml(s) { return String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
@@ -576,6 +654,10 @@ async function serveConnected(request, env, url) {
   const site = await env.DB.prepare(`SELECT * FROM connected_sites WHERE slug=? AND status='published'`).bind(slug).first();
   if (!site) return null;
   const rest = parts.slice(1).join('/');
+
+  if (rest === 'manifest.webmanifest') return connectedManifest(site);
+  if (rest === 'sw.js') return connectedServiceWorker(site);
+  if (rest === 'favicon.ico') return Response.redirect(siteLogoUrl(site), 302);
 
   if (!rest || /^index\.html?$/i.test(rest)) {
     const canonical = `${BASE_URL}/${site.slug}/`;

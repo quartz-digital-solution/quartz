@@ -27,35 +27,36 @@
 <div id="appView" class="app hidden">
   <aside class="sidebar">
     <a class="brand" href="/"><img src="/asset/img/logo/quartz.png" alt="Quartz"></a>
-    <nav>
-      <button class="nav-btn active" data-view="sites">Connected Websites</button>
-      <button class="nav-btn" id="newSiteBtn">Add Website</button>
+    <nav class="main-nav" aria-label="Admin sections">
+      <button class="nav-btn active" id="sitesNavBtn" type="button">Websites</button>
+      <button class="nav-btn" id="newSiteBtn" type="button">Add Website</button>
     </nav>
-    <button id="logoutBtn" class="logout">Logout</button>
   </aside>
 
   <main class="main">
     <section id="sitesView">
       <div class="topbar">
-        <div><span class="kicker">QUARTZ PLATFORM</span><h1>Connected websites</h1><p>Publish, edit and manage websites hosted under quartzwebsolutions.com.</p></div>
-        <button id="topNewSiteBtn" class="primary">+ Add Website</button>
+        <div><span class="kicker">QUARTZ PLATFORM</span><h1>Connected websites</h1><p>Manage every website published under quartzwebsolutions.com.</p></div>
       </div>
       <div class="stats">
-        <div><strong id="totalCount">0</strong><span>Total</span></div>
+        <div><strong id="totalCount">0</strong><span>Total websites</span></div>
         <div><strong id="liveCount">0</strong><span>Published</span></div>
-        <div><strong id="draftCount">0</strong><span>Drafts</span></div>
       </div>
-      <div class="toolbar"><input id="searchInput" type="search" placeholder="Search name, URL or keyword"><button id="refreshBtn">Refresh</button></div>
+      <div class="toolbar"><input id="searchInput" type="search" placeholder="Search name, URL, keyword or location"><button id="refreshBtn" type="button">Refresh</button></div>
       <div id="siteList" class="site-list"></div>
       <div id="emptyState" class="empty hidden">No connected websites yet.</div>
     </section>
 
     <section id="editorView" class="hidden">
       <div class="editor-head">
-        <button id="backBtn" class="ghost">← Back</button>
-        <div class="editor-actions"><a id="openLiveBtn" class="ghost hidden" target="_blank" rel="noopener">Open live site ↗</a><button id="deleteBtn" class="danger hidden">Delete</button><button id="saveDraftBtn" class="ghost">Save Draft</button><button id="publishBtn" class="primary">Deploy Website</button></div>
+        <button id="backBtn" class="ghost" type="button">← Back</button>
+        <div class="editor-actions">
+          <a id="openLiveBtn" class="ghost hidden" target="_blank" rel="noopener">Open live site ↗</a>
+          <button id="deleteBtn" class="danger hidden" type="button">Delete website</button>
+          <button id="publishBtn" class="primary" type="button">Deploy Website</button>
+        </div>
       </div>
-      <form id="siteForm" class="editor-grid">
+      <form id="siteForm" class="editor-grid" onsubmit="return false">
         <div class="form-main">
           <div class="panel">
             <span class="kicker">WEBSITE</span><h2>Website details</h2>
@@ -66,8 +67,7 @@
             <div class="fields two"><label>Address<textarea id="address" rows="2" placeholder="Full business address"></textarea></label><label>Postal code<input id="postalCode" placeholder="673638"></label></div>
             <div class="fields three"><label>Phone<input id="phone" placeholder="+91..."></label><label>WhatsApp<input id="whatsapp" placeholder="+91..."></label><label>Email<input id="email" type="email" placeholder="shop@example.com"></label></div>
             <label>Opening hours<textarea id="openingHours" rows="3" placeholder="Mo-Sa 09:00-19:00&#10;Su 10:00-14:00"></textarea></label>
-            <div class="fields two"><label>Google Maps URL<input id="mapsUrl" type="url" placeholder="https://maps.google.com/..."></label><label>Price range<input id="priceRange" placeholder="₹₹ or ₹500-₹5000"></label></div>
-            <div class="fields two"><label>Latitude<input id="latitude" inputmode="decimal" placeholder="11.1390"></label><label>Longitude<input id="longitude" inputmode="decimal" placeholder="75.9320"></label></div>
+            <label>Google Maps URL<input id="mapsUrl" type="url" placeholder="https://maps.google.com/..."></label>
             <div class="fields three"><label>Instagram URL<input id="instagramUrl" type="url" placeholder="https://instagram.com/..."></label><label>Facebook URL<input id="facebookUrl" type="url" placeholder="https://facebook.com/..."></label><label>YouTube URL<input id="youtubeUrl" type="url" placeholder="https://youtube.com/..."></label></div>
             <label>Business description<textarea id="businessDescription" rows="4" placeholder="Describe the actual business, products and services..."></textarea></label>
           </div>
@@ -78,14 +78,14 @@
             <label>Secondary keywords<textarea id="keywords" rows="6" placeholder="best furniture shop Kondotty&#10;sofa shop Kondotty&#10;furniture store Malappuram"></textarea></label>
             <div class="fields two"><label>SEO title<input id="seoTitle" maxlength="180" placeholder="Auto-generated if empty"></label><label>Meta description<textarea id="seoDescription" rows="3" maxlength="400" placeholder="Auto-generated if empty"></textarea></label></div>
             <div id="seoChecks" class="seo-checks"></div>
-            <p class="note">Quartz automatically turns these fields into live SEO metadata and structured data. Published root and multi-page HTML pages get clean canonicals, index/follow, Open Graph, WebPage + LocalBusiness schema, breadcrumbs and automatic sitemap entries. Google does not use the meta-keywords tag, so Quartz never injects it.</p>
+            <p class="note">Quartz automatically updates canonical URLs, titles, descriptions, LocalBusiness schema, Open Graph, sitemap entries, favicon, PWA manifest and installability whenever this website is deployed or edited.</p>
           </div>
 
           <div class="panel">
             <span class="kicker">HTML</span><h2>index.html</h2>
             <div class="upload-row"><label class="file-btn">Load index.html<input id="indexFile" type="file" accept=".html,.htm,text/html"></label><label class="file-btn">Load website folder<input id="folderFiles" type="file" webkitdirectory directory multiple></label><span id="folderStatus"></span></div>
             <textarea id="indexHtml" class="code" spellcheck="false" rows="25" required placeholder="<!doctype html>..."></textarea>
-            <p class="note">For a complete static site, choose its folder. Quartz reads the root index.html into this editor and uploads the other CSS, JS, image and font files as site assets.</p>
+            <p class="note">For a complete static site, choose its folder. Quartz stores the root index.html in D1 and syncs the other CSS, JS, image, font and HTML files to R2.</p>
           </div>
         </div>
 
@@ -96,17 +96,22 @@
             <div class="status-line"><span>Deployed</span><strong id="deployedAt">—</strong></div>
             <div class="status-line"><span>URL</span><a id="previewUrl" target="_blank" rel="noopener">—</a></div>
             <hr>
-            <label>Logo / social image<input id="logoFile" type="file" accept="image/*"></label>
+            <label>Logo / app icon<input id="logoFile" type="file" accept="image/*"></label>
             <div id="logoPreview" class="logo-preview">No logo</div>
-            <hr>
-            <span class="kicker">PREVIEW</span>
-            <iframe id="htmlPreview" title="Website preview" sandbox="allow-scripts allow-forms allow-popups"></iframe>
+            <p class="note">The uploaded image is automatically center-cropped and saved as a 512×512 square. Quartz uses it as the website favicon, social image and installable-app icon.</p>
           </div>
         </aside>
       </form>
       <div id="saveToast" class="toast hidden"></div>
     </section>
   </main>
+</div>
+
+<div id="busyOverlay" class="busy-overlay hidden" aria-live="polite" aria-busy="true">
+  <div class="busy-card">
+    <div class="dot-loader" aria-hidden="true"><span></span><span></span><span></span></div>
+    <strong id="busyText">Working…</strong>
+  </div>
 </div>
 <script src="/admin/admin.js"></script>
 </body>
