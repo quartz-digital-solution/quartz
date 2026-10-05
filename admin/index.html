@@ -60,10 +60,15 @@
           <div class="panel">
             <span class="kicker">WEBSITE</span><h2>Website details</h2>
             <div class="fields two"><label>Name<input id="siteName" required placeholder="Royal Furniture"></label><label>URL slug<div class="slug-wrap"><span>quartzwebsolutions.com/</span><input id="siteSlug" required placeholder="royal-furniture-kondotty"></div></label></div>
-            <div class="fields two"><label>Category<input id="category" placeholder="Furniture Store"></label><label>Business type / service<input id="services" placeholder="Sofas, Beds, Tables"></label></div>
+            <div class="fields two"><label>Category<input id="category" placeholder="Furniture Store"></label><label>Schema business type<select id="businessType"><option>LocalBusiness</option><option>Store</option><option>Restaurant</option><option>Bakery</option><option>FurnitureStore</option><option>ClothingStore</option><option>ElectronicsStore</option><option>MobilePhoneStore</option><option>ConvenienceStore</option><option>GroceryStore</option><option>HardwareStore</option><option>HomeGoodsStore</option><option>JewelryStore</option><option>ShoeStore</option><option>AutoRepair</option><option>BeautySalon</option><option>HairSalon</option><option>TravelAgency</option><option>ProfessionalService</option><option>RealEstateAgent</option><option>Pharmacy</option><option>Florist</option><option>ComputerStore</option><option>CafeOrCoffeeShop</option><option>FastFoodRestaurant</option><option>Hotel</option></select></label></div>
+            <label>Products / services<input id="services" placeholder="Sofas, Beds, Tables"></label>
             <div class="fields three"><label>City<input id="city" placeholder="Kondotty"></label><label>District<input id="district" placeholder="Malappuram"></label><label>State<input id="state" value="Kerala"></label></div>
-            <label>Address<textarea id="address" rows="2" placeholder="Full business address"></textarea></label>
-            <div class="fields two"><label>Phone<input id="phone" placeholder="+91..."></label><label>WhatsApp<input id="whatsapp" placeholder="+91..."></label></div>
+            <div class="fields two"><label>Address<textarea id="address" rows="2" placeholder="Full business address"></textarea></label><label>Postal code<input id="postalCode" placeholder="673638"></label></div>
+            <div class="fields three"><label>Phone<input id="phone" placeholder="+91..."></label><label>WhatsApp<input id="whatsapp" placeholder="+91..."></label><label>Email<input id="email" type="email" placeholder="shop@example.com"></label></div>
+            <label>Opening hours<textarea id="openingHours" rows="3" placeholder="Mo-Sa 09:00-19:00&#10;Su 10:00-14:00"></textarea></label>
+            <div class="fields two"><label>Google Maps URL<input id="mapsUrl" type="url" placeholder="https://maps.google.com/..."></label><label>Price range<input id="priceRange" placeholder="₹₹ or ₹500-₹5000"></label></div>
+            <div class="fields two"><label>Latitude<input id="latitude" inputmode="decimal" placeholder="11.1390"></label><label>Longitude<input id="longitude" inputmode="decimal" placeholder="75.9320"></label></div>
+            <div class="fields three"><label>Instagram URL<input id="instagramUrl" type="url" placeholder="https://instagram.com/..."></label><label>Facebook URL<input id="facebookUrl" type="url" placeholder="https://facebook.com/..."></label><label>YouTube URL<input id="youtubeUrl" type="url" placeholder="https://youtube.com/..."></label></div>
             <label>Business description<textarea id="businessDescription" rows="4" placeholder="Describe the actual business, products and services..."></textarea></label>
           </div>
 
@@ -73,7 +78,7 @@
             <label>Secondary keywords<textarea id="keywords" rows="6" placeholder="best furniture shop Kondotty&#10;sofa shop Kondotty&#10;furniture store Malappuram"></textarea></label>
             <div class="fields two"><label>SEO title<input id="seoTitle" maxlength="180" placeholder="Auto-generated if empty"></label><label>Meta description<textarea id="seoDescription" rows="3" maxlength="400" placeholder="Auto-generated if empty"></textarea></label></div>
             <div id="seoChecks" class="seo-checks"></div>
-            <p class="note">Quartz automatically injects canonical URL, robots, Open Graph, Twitter cards, LocalBusiness schema, WebPage schema, breadcrumbs and sitemap inclusion. Keyword fields are used as SEO targets; Google does not rank pages from the meta-keywords tag alone.</p>
+            <p class="note">Quartz automatically turns these fields into live SEO metadata and structured data. Published root and multi-page HTML pages get clean canonicals, index/follow, Open Graph, WebPage + LocalBusiness schema, breadcrumbs and automatic sitemap entries. Google does not use the meta-keywords tag, so Quartz never injects it.</p>
           </div>
 
           <div class="panel">
