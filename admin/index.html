@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>Quartz Admin</title>
+<link rel="icon" href="/asset/img/fav/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+<div id="loginView" class="login-view">
+  <form id="loginForm" class="login-card">
+    <img src="/asset/img/logo/quartz.png" alt="Quartz Web Solutions">
+    <span>PRIVATE ADMIN</span>
+    <h1>Quartz Sites</h1>
+    <p>Enter the admin login ID.</p>
+    <input id="loginId" autocomplete="username" placeholder="Login ID" required>
+    <button>Login</button>
+    <div id="loginError" class="error"></div>
+  </form>
+</div>
+
+<div id="appView" class="app hidden">
+  <aside class="sidebar">
+    <a class="brand" href="/"><img src="/asset/img/logo/quartz.png" alt="Quartz"></a>
+    <nav>
+      <button class="nav-btn active" data-view="sites">Connected Websites</button>
+      <button class="nav-btn" id="newSiteBtn">Add Website</button>
+    </nav>
+    <button id="logoutBtn" class="logout">Logout</button>
+  </aside>
+
+  <main class="main">
+    <section id="sitesView">
+      <div class="topbar">
+        <div><span class="kicker">QUARTZ PLATFORM</span><h1>Connected websites</h1><p>Publish, edit and manage websites hosted under quartzwebsolutions.com.</p></div>
+        <button id="topNewSiteBtn" class="primary">+ Add Website</button>
+      </div>
+      <div class="stats">
+        <div><strong id="totalCount">0</strong><span>Total</span></div>
+        <div><strong id="liveCount">0</strong><span>Published</span></div>
+        <div><strong id="draftCount">0</strong><span>Drafts</span></div>
+      </div>
+      <div class="toolbar"><input id="searchInput" type="search" placeholder="Search name, URL or keyword"><button id="refreshBtn">Refresh</button></div>
+      <div id="siteList" class="site-list"></div>
+      <div id="emptyState" class="empty hidden">No connected websites yet.</div>
+    </section>
+
+    <section id="editorView" class="hidden">
+      <div class="editor-head">
+        <button id="backBtn" class="ghost">← Back</button>
+        <div class="editor-actions"><a id="openLiveBtn" class="ghost hidden" target="_blank" rel="noopener">Open live site ↗</a><button id="deleteBtn" class="danger hidden">Delete</button><button id="saveDraftBtn" class="ghost">Save Draft</button><button id="publishBtn" class="primary">Deploy Website</button></div>
+      </div>
+      <form id="siteForm" class="editor-grid">
+        <div class="form-main">
+          <div class="panel">
+            <span class="kicker">WEBSITE</span><h2>Website details</h2>
+            <div class="fields two"><label>Name<input id="siteName" required placeholder="Royal Furniture"></label><label>URL slug<div class="slug-wrap"><span>quartzwebsolutions.com/</span><input id="siteSlug" required placeholder="royal-furniture-kondotty"></div></label></div>
+            <div class="fields two"><label>Category<input id="category" placeholder="Furniture Store"></label><label>Business type / service<input id="services" placeholder="Sofas, Beds, Tables"></label></div>
+            <div class="fields three"><label>City<input id="city" placeholder="Kondotty"></label><label>District<input id="district" placeholder="Malappuram"></label><label>State<input id="state" value="Kerala"></label></div>
+            <label>Address<textarea id="address" rows="2" placeholder="Full business address"></textarea></label>
+            <div class="fields two"><label>Phone<input id="phone" placeholder="+91..."></label><label>WhatsApp<input id="whatsapp" placeholder="+91..."></label></div>
+            <label>Business description<textarea id="businessDescription" rows="4" placeholder="Describe the actual business, products and services..."></textarea></label>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title"><div><span class="kicker">SEO</span><h2>Search optimisation</h2></div><div class="score"><strong id="seoScore">0</strong><span>/100</span></div></div>
+            <label>Primary keyword<input id="primaryKeyword" placeholder="furniture shop in Kondotty"></label>
+            <label>Secondary keywords<textarea id="keywords" rows="6" placeholder="best furniture shop Kondotty&#10;sofa shop Kondotty&#10;furniture store Malappuram"></textarea></label>
+            <div class="fields two"><label>SEO title<input id="seoTitle" maxlength="180" placeholder="Auto-generated if empty"></label><label>Meta description<textarea id="seoDescription" rows="3" maxlength="400" placeholder="Auto-generated if empty"></textarea></label></div>
+            <div id="seoChecks" class="seo-checks"></div>
+            <p class="note">Quartz automatically injects canonical URL, robots, Open Graph, Twitter cards, LocalBusiness schema, WebPage schema, breadcrumbs and sitemap inclusion. Keyword fields are used as SEO targets; Google does not rank pages from the meta-keywords tag alone.</p>
+          </div>
+
+          <div class="panel">
+            <span class="kicker">HTML</span><h2>index.html</h2>
+            <div class="upload-row"><label class="file-btn">Load index.html<input id="indexFile" type="file" accept=".html,.htm,text/html"></label><label class="file-btn">Load website folder<input id="folderFiles" type="file" webkitdirectory directory multiple></label><span id="folderStatus"></span></div>
+            <textarea id="indexHtml" class="code" spellcheck="false" rows="25" required placeholder="<!doctype html>..."></textarea>
+            <p class="note">For a complete static site, choose its folder. Quartz reads the root index.html into this editor and uploads the other CSS, JS, image and font files as site assets.</p>
+          </div>
+        </div>
+
+        <aside class="form-side">
+          <div class="panel sticky">
+            <span class="kicker">STATUS</span>
+            <div class="status-line"><span>Current</span><strong id="currentStatus">New site</strong></div>
+            <div class="status-line"><span>Deployed</span><strong id="deployedAt">—</strong></div>
+            <div class="status-line"><span>URL</span><a id="previewUrl" target="_blank" rel="noopener">—</a></div>
+            <hr>
+            <label>Logo / social image<input id="logoFile" type="file" accept="image/*"></label>
+            <div id="logoPreview" class="logo-preview">No logo</div>
+            <hr>
+            <span class="kicker">PREVIEW</span>
+            <iframe id="htmlPreview" title="Website preview" sandbox="allow-scripts allow-forms allow-popups"></iframe>
+          </div>
+        </aside>
+      </form>
+      <div id="saveToast" class="toast hidden"></div>
+    </section>
+  </main>
+</div>
+<script src="/admin/admin.js"></script>
+</body>
+</html>
