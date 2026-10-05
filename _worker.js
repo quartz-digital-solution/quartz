@@ -75,46 +75,47 @@ async function isAdmin(request, env) {
 
 async function ensureSchema(env) {
   if (!env.DB) throw new Error('D1 binding DB is not configured');
-  await env.DB.exec(`
-    CREATE TABLE IF NOT EXISTS connected_sites (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      slug TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'draft',
-      logo_path TEXT DEFAULT '',
-      seo_title TEXT DEFAULT '',
-      seo_description TEXT DEFAULT '',
-      primary_keyword TEXT DEFAULT '',
-      keywords_json TEXT DEFAULT '[]',
-      category TEXT DEFAULT '',
-      business_type TEXT DEFAULT 'LocalBusiness',
-      city TEXT DEFAULT '',
-      district TEXT DEFAULT '',
-      state TEXT DEFAULT 'Kerala',
-      country_code TEXT DEFAULT 'IN',
-      address TEXT DEFAULT '',
-      postal_code TEXT DEFAULT '',
-      phone TEXT DEFAULT '',
-      whatsapp TEXT DEFAULT '',
-      email TEXT DEFAULT '',
-      opening_hours_json TEXT DEFAULT '[]',
-      maps_url TEXT DEFAULT '',
-      latitude REAL,
-      longitude REAL,
-      price_range TEXT DEFAULT '',
-      instagram_url TEXT DEFAULT '',
-      facebook_url TEXT DEFAULT '',
-      youtube_url TEXT DEFAULT '',
-      business_description TEXT DEFAULT '',
-      services_json TEXT DEFAULT '[]',
-      index_html TEXT NOT NULL DEFAULT '<!doctype html><html><head><title>New Website</title></head><body></body></html>',
-      deployed_at TEXT,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE INDEX IF NOT EXISTS idx_connected_sites_slug ON connected_sites(slug);
-    CREATE INDEX IF NOT EXISTS idx_connected_sites_status ON connected_sites(status);
-  `);
+  // D1 exec() treats newline-separated input as separate statements. Keep the
+  // multi-line CREATE TABLE as one prepared statement so it is not split at
+  // `CREATE TABLE ... (` and reported as an incomplete query.
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS connected_sites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft',
+    logo_path TEXT DEFAULT '',
+    seo_title TEXT DEFAULT '',
+    seo_description TEXT DEFAULT '',
+    primary_keyword TEXT DEFAULT '',
+    keywords_json TEXT DEFAULT '[]',
+    category TEXT DEFAULT '',
+    business_type TEXT DEFAULT 'LocalBusiness',
+    city TEXT DEFAULT '',
+    district TEXT DEFAULT '',
+    state TEXT DEFAULT 'Kerala',
+    country_code TEXT DEFAULT 'IN',
+    address TEXT DEFAULT '',
+    postal_code TEXT DEFAULT '',
+    phone TEXT DEFAULT '',
+    whatsapp TEXT DEFAULT '',
+    email TEXT DEFAULT '',
+    opening_hours_json TEXT DEFAULT '[]',
+    maps_url TEXT DEFAULT '',
+    latitude REAL,
+    longitude REAL,
+    price_range TEXT DEFAULT '',
+    instagram_url TEXT DEFAULT '',
+    facebook_url TEXT DEFAULT '',
+    youtube_url TEXT DEFAULT '',
+    business_description TEXT DEFAULT '',
+    services_json TEXT DEFAULT '[]',
+    index_html TEXT NOT NULL DEFAULT '<!doctype html><html><head><title>New Website</title></head><body></body></html>',
+    deployed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`).run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_connected_sites_slug ON connected_sites(slug)').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_connected_sites_status ON connected_sites(status)').run();
 
   // Safe automatic migration for databases created by earlier Quartz builds.
   const info = await env.DB.prepare('PRAGMA table_info(connected_sites)').all();
