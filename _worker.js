@@ -99,13 +99,6 @@ async function ensureSchema(env) {
       whatsapp TEXT DEFAULT '',
       email TEXT DEFAULT '',
       opening_hours_json TEXT DEFAULT '[]',
-      maps_url TEXT DEFAULT '',
-      latitude REAL,
-      longitude REAL,
-      price_range TEXT DEFAULT '',
-      instagram_url TEXT DEFAULT '',
-      facebook_url TEXT DEFAULT '',
-      youtube_url TEXT DEFAULT '',
       business_description TEXT DEFAULT '',
       services_json TEXT DEFAULT '[]',
       index_html TEXT NOT NULL DEFAULT '<!doctype html><html><head><title>New Website</title></head><body></body></html>',
@@ -125,14 +118,7 @@ async function ensureSchema(env) {
     ['country_code', `TEXT DEFAULT 'IN'`],
     ['postal_code', `TEXT DEFAULT ''`],
     ['email', `TEXT DEFAULT ''`],
-    ['opening_hours_json', `TEXT DEFAULT '[]'`],
-    ['maps_url', `TEXT DEFAULT ''`],
-    ['latitude', 'REAL'],
-    ['longitude', 'REAL'],
-    ['price_range', `TEXT DEFAULT ''`],
-    ['instagram_url', `TEXT DEFAULT ''`],
-    ['facebook_url', `TEXT DEFAULT ''`],
-    ['youtube_url', `TEXT DEFAULT ''`]
+    ['opening_hours_json', `TEXT DEFAULT '[]'`]
   ];
   for (const [name, type] of migrations) {
     if (existing.has(name)) continue;
@@ -147,19 +133,6 @@ function normalizeSlug(value) {
 function parseList(value) {
   if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean);
   return String(value || '').split(/[\n,]+/).map(v => v.trim()).filter(Boolean);
-}
-function cleanUrl(value) {
-  const v = String(value || '').trim();
-  if (!v) return '';
-  try {
-    const u = new URL(v.startsWith('http') ? v : `https://${v}`);
-    return ['http:','https:'].includes(u.protocol) ? u.toString() : '';
-  } catch { return ''; }
-}
-function validCoord(value, min, max) {
-  if (value === '' || value === null || value === undefined) return null;
-  const n = Number(value);
-  return Number.isFinite(n) && n >= min && n <= max ? n : null;
 }
 function normalizeBusinessType(value) {
   const v = String(value || 'LocalBusiness').trim();
@@ -189,13 +162,6 @@ function sanitizeSiteInput(body) {
     whatsapp: String(body.whatsapp || '').trim().slice(0, 60),
     email: String(body.email || '').trim().slice(0, 180),
     opening_hours_json: JSON.stringify(parseList(body.opening_hours).slice(0, 30)),
-    maps_url: cleanUrl(body.maps_url).slice(0, 500),
-    latitude: validCoord(body.latitude, -90, 90),
-    longitude: validCoord(body.longitude, -180, 180),
-    price_range: String(body.price_range || '').trim().slice(0, 80),
-    instagram_url: cleanUrl(body.instagram_url).slice(0, 500),
-    facebook_url: cleanUrl(body.facebook_url).slice(0, 500),
-    youtube_url: cleanUrl(body.youtube_url).slice(0, 500),
     business_description: String(body.business_description || '').trim().slice(0, 3000),
     services_json: JSON.stringify(parseList(body.services).slice(0, 80)),
     index_html: String(body.index_html || '').slice(0, 2_000_000)
@@ -211,7 +177,7 @@ function rowToSite(row) {
   };
 }
 
-const SITE_COLUMNS = `slug,name,status,logo_path,seo_title,seo_description,primary_keyword,keywords_json,category,business_type,city,district,state,country_code,address,postal_code,phone,whatsapp,email,opening_hours_json,maps_url,latitude,longitude,price_range,instagram_url,facebook_url,youtube_url,business_description,services_json,index_html,deployed_at,created_at,updated_at`;
+const SITE_COLUMNS = `slug,name,status,logo_path,seo_title,seo_description,primary_keyword,keywords_json,category,business_type,city,district,state,country_code,address,postal_code,phone,whatsapp,email,opening_hours_json,business_description,services_json,index_html,deployed_at,created_at,updated_at`;
 
 async function handleAdminApi(request, env, url) {
   const pathname = url.pathname;
@@ -252,7 +218,7 @@ async function handleAdminApi(request, env, url) {
     if (!s.name || !s.slug || !s.index_html) return bad('Name, URL slug and index.html are required');
     const now = new Date().toISOString();
     try {
-      const values = [s.slug,s.name,s.status,s.logo_path,s.seo_title,s.seo_description,s.primary_keyword,s.keywords_json,s.category,s.business_type,s.city,s.district,s.state,s.country_code,s.address,s.postal_code,s.phone,s.whatsapp,s.email,s.opening_hours_json,s.maps_url,s.latitude,s.longitude,s.price_range,s.instagram_url,s.facebook_url,s.youtube_url,s.business_description,s.services_json,s.index_html,s.status==='published'?now:null,now,now];
+      const values = [s.slug,s.name,s.status,s.logo_path,s.seo_title,s.seo_description,s.primary_keyword,s.keywords_json,s.category,s.business_type,s.city,s.district,s.state,s.country_code,s.address,s.postal_code,s.phone,s.whatsapp,s.email,s.opening_hours_json,s.business_description,s.services_json,s.index_html,s.status==='published'?now:null,now,now];
       const marks = values.map(() => '?').join(',');
       const r = await env.DB.prepare(`INSERT INTO connected_sites (${SITE_COLUMNS}) VALUES (${marks}) RETURNING *`).bind(...values).first();
       return json({ ok: true, site: rowToSite(r) }, 201);
@@ -278,8 +244,8 @@ async function handleAdminApi(request, env, url) {
       const now = new Date().toISOString();
       const deployed = s.status === 'published' ? (existing.deployed_at || now) : existing.deployed_at;
       try {
-        const row = await env.DB.prepare(`UPDATE connected_sites SET slug=?,name=?,status=?,logo_path=?,seo_title=?,seo_description=?,primary_keyword=?,keywords_json=?,category=?,business_type=?,city=?,district=?,state=?,country_code=?,address=?,postal_code=?,phone=?,whatsapp=?,email=?,opening_hours_json=?,maps_url=?,latitude=?,longitude=?,price_range=?,instagram_url=?,facebook_url=?,youtube_url=?,business_description=?,services_json=?,index_html=?,deployed_at=?,updated_at=? WHERE id=? RETURNING *`)
-          .bind(s.slug,s.name,s.status,s.logo_path,s.seo_title,s.seo_description,s.primary_keyword,s.keywords_json,s.category,s.business_type,s.city,s.district,s.state,s.country_code,s.address,s.postal_code,s.phone,s.whatsapp,s.email,s.opening_hours_json,s.maps_url,s.latitude,s.longitude,s.price_range,s.instagram_url,s.facebook_url,s.youtube_url,s.business_description,s.services_json,s.index_html,deployed,now,id).first();
+        const row = await env.DB.prepare(`UPDATE connected_sites SET slug=?,name=?,status=?,logo_path=?,seo_title=?,seo_description=?,primary_keyword=?,keywords_json=?,category=?,business_type=?,city=?,district=?,state=?,country_code=?,address=?,postal_code=?,phone=?,whatsapp=?,email=?,opening_hours_json=?,business_description=?,services_json=?,index_html=?,deployed_at=?,updated_at=? WHERE id=? RETURNING *`)
+          .bind(s.slug,s.name,s.status,s.logo_path,s.seo_title,s.seo_description,s.primary_keyword,s.keywords_json,s.category,s.business_type,s.city,s.district,s.state,s.country_code,s.address,s.postal_code,s.phone,s.whatsapp,s.email,s.opening_hours_json,s.business_description,s.services_json,s.index_html,deployed,now,id).first();
         return json({ ok: true, site: rowToSite(row) });
       } catch (e) {
         if (String(e).toLowerCase().includes('unique')) return bad('That URL slug is already used', 409);
@@ -534,9 +500,7 @@ function pageSeo(site, htmlText, canonical) {
 function schemaGraph(site, seo, canonical, image, logo) {
   const services = (()=>{try{return JSON.parse(site.services_json||'[]')}catch{return[]}})();
   const openingHours = (()=>{try{return JSON.parse(site.opening_hours_json||'[]')}catch{return[]}})();
-  const sameAs = [site.instagram_url,site.facebook_url,site.youtube_url].filter(Boolean);
   const hasAddress = site.address || site.city || site.district || site.postal_code;
-  const hasGeo = Number.isFinite(Number(site.latitude)) && Number.isFinite(Number(site.longitude));
   const business = {
     '@type': normalizeBusinessType(site.business_type),
     '@id': seo.rootCanonical + '#business',
@@ -547,10 +511,7 @@ function schemaGraph(site, seo, canonical, image, logo) {
     description: site.business_description || seo.description,
     telephone: site.phone || undefined,
     email: site.email || undefined,
-    priceRange: site.price_range || undefined,
-    hasMap: site.maps_url || undefined,
     openingHours: openingHours.length ? openingHours : undefined,
-    sameAs: sameAs.length ? sameAs : undefined,
     address: hasAddress ? {
       '@type':'PostalAddress',
       streetAddress:site.address||undefined,
@@ -559,7 +520,6 @@ function schemaGraph(site, seo, canonical, image, logo) {
       postalCode:site.postal_code||undefined,
       addressCountry:site.country_code||'IN'
     } : undefined,
-    geo: hasGeo ? { '@type':'GeoCoordinates', latitude:Number(site.latitude), longitude:Number(site.longitude) } : undefined,
     areaServed:[site.city,site.district,site.state].filter(Boolean),
     knowsAbout:seo.searchPhrases.slice(0,40),
     hasOfferCatalog: services.length ? {

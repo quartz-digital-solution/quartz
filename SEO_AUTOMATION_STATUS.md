@@ -9,6 +9,6 @@
 - Multi-page connected-site SEO: ready
 - Dynamic sitemap + accurate connected-site lastmod: ready
 - Dynamic business directory + city crawl pages: ready
-- LocalBusiness details: address, phone, hours, map, geo, social, price range, services: ready
+- LocalBusiness details: address, postal code, phone, email, opening hours and services: ready
 - Connected-site image SEO fallback + business social image: ready
 - Google Search Console: requires one-time manual Domain-property verification and sitemap submission; see VERIFICATION_AND_SEO_GUIDE.md

@@ -5,7 +5,7 @@
 - Every published connected site gets a clean canonical URL under `https://quartzwebsolutions.com/<site-slug>/`.
 - Root pages and uploaded multi-page HTML files receive unique page titles/descriptions, `index,follow`, Open Graph/Twitter metadata, LocalBusiness + WebSite + WebPage + breadcrumb structured data, and image metadata.
 - Quartz removes `meta keywords` because Google does not use that tag.
-- Business name, category, city, district, services, address, phone, opening hours, map, geo coordinates, social links, business description, primary keyword, secondary keywords, HTML and logo all feed the SEO renderer.
+- Business name, category, city, district, state, services, address, postal code, phone, WhatsApp, email, opening hours, business description, primary keyword, secondary keywords, HTML and logo all feed the SEO renderer.
 - Editing any of those fields and clicking Deploy updates SEO immediately and updates that site's sitemap `lastmod`. Uploading/replacing assets also updates the modification time.
 - Uploaded HTML subpages are discovered and added to the dynamic sitemap.
 - Published sites are linked from `/businesses/` and city directory pages, improving crawl discovery.
