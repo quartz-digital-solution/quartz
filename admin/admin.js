@@ -1,5 +1,5 @@
 const $ = s => document.querySelector(s);
-const state = { sites: [], current: null, folderFiles: [], logoFile: null, previewTimer: null };
+const state = { sites: [], current: null, folderFiles: [], logoFile: null, logoFile192: null, previewTimer: null };
 const els = {
   loginView: $('#loginView'), appView: $('#appView'), loginForm: $('#loginForm'), loginId: $('#loginId'), loginError: $('#loginError'),
   sitesView: $('#sitesView'), editorView: $('#editorView'), siteList: $('#siteList'), emptyState: $('#emptyState'), searchInput: $('#searchInput'),
@@ -63,8 +63,8 @@ function showSites(){ els.sitesView.classList.remove('hidden'); els.editorView.c
 function showEditor(){ els.sitesView.classList.add('hidden'); els.editorView.classList.remove('hidden'); scrollTo({top:0,behavior:'instant'}); }
 
 function blankSite(){ return { name:'',slug:'',status:'draft',logo_path:'',seo_title:'',seo_description:'',primary_keyword:'',keywords:[],category:'',business_type:'LocalBusiness',city:'',district:'',state:'Kerala',country_code:'IN',address:'',postal_code:'',phone:'',whatsapp:'',email:'',opening_hours:[],business_description:'',services:[],index_html:'<!doctype html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>Business Website</title>\n</head>\n<body>\n  <main>\n    <h1>Business Name</h1>\n    <p>Add the real business content here.</p>\n  </main>\n</body>\n</html>' }; }
-function openNew(){ state.current=null; state.folderFiles=[]; state.logoFile=null; fillForm(blankSite()); $('#deleteBtn').classList.add('hidden'); $('#openLiveBtn').classList.add('hidden'); showEditor(); }
-async function openEdit(id){ const data=await api(`/api/sites/${id}`); state.current=data.site; state.folderFiles=[]; state.logoFile=null; fillForm(data.site); $('#deleteBtn').classList.remove('hidden'); updateLiveLink(); showEditor(); }
+function openNew(){ state.current=null; state.folderFiles=[]; state.logoFile=null; state.logoFile192=null; fillForm(blankSite()); $('#deleteBtn').classList.add('hidden'); $('#openLiveBtn').classList.add('hidden'); showEditor(); }
+async function openEdit(id){ const data=await api(`/api/sites/${id}`); state.current=data.site; state.folderFiles=[]; state.logoFile=null; state.logoFile192=null; fillForm(data.site); $('#deleteBtn').classList.remove('hidden'); updateLiveLink(); showEditor(); }
 
 function fillForm(s){
   $('#siteName').value=s.name||''; $('#siteSlug').value=s.slug||''; $('#category').value=s.category||''; $('#businessType').value=s.business_type||'LocalBusiness'; $('#services').value=(s.services||[]).join(', '); $('#city').value=s.city||''; $('#district').value=s.district||''; $('#state').value=s.state||'Kerala'; $('#address').value=s.address||''; $('#postalCode').value=s.postal_code||''; $('#phone').value=s.phone||''; $('#whatsapp').value=s.whatsapp||''; $('#email').value=s.email||''; $('#openingHours').value=(s.opening_hours||[]).join('\n'); $('#businessDescription').value=s.business_description||''; $('#primaryKeyword').value=s.primary_keyword||''; $('#keywords').value=(s.keywords||[]).join('\n'); $('#seoTitle').value=s.seo_title||''; $('#seoDescription').value=s.seo_description||''; $('#indexHtml').value=s.index_html||'';
@@ -89,7 +89,7 @@ async function save(status){
     state.current=site;
     if(state.logoFile) await uploadLogo(site);
     if(state.folderFiles.length) await uploadFolder(site);
-    if(state.logoFile || state.folderFiles.length) state.current=(await api(`/api/sites/${site.id}`)).site;
+    if(state.logoFile || state.logoFile192 || state.folderFiles.length) state.current=(await api(`/api/sites/${site.id}`)).site;
     fillForm(state.current); $('#deleteBtn').classList.remove('hidden'); updateLiveLink(); showToast(status==='published'?'Website deployed':'Draft saved'); await loadSites();
   }catch(e){showToast(e.message,true);}
 }
@@ -105,17 +105,54 @@ $('#folderFiles').addEventListener('change', async e=>{
   for(const file of files){ let path=(file.webkitRelativePath||file.name).replace(/^\/+/, ''); if(firstRoot && path.startsWith(firstRoot+'/')) path=path.slice(firstRoot.length+1); if(!path)continue; if(path.toLowerCase()==='index.html'){ $('#indexHtml').value=await file.text(); } else state.folderFiles.push({file,path}); }
   $('#folderStatus').textContent=`${files.length} files selected · ${state.folderFiles.length} assets will upload`; renderHtmlPreview(); updateSeoScore();
 });
-$('#logoFile').addEventListener('change',e=>{state.logoFile=e.target.files?.[0]||null;if(state.logoFile){const url=URL.createObjectURL(state.logoFile);$('#logoPreview').innerHTML=`<img src="${url}" alt="Logo preview">`;}});
+async function normalizeIconFile(file, size=512){
+  if(!file) return null;
+  if(!/^image\//i.test(file.type||'')) throw new Error('Please choose an image file');
+  if(file.size > 12*1024*1024) throw new Error('Icon image must be smaller than 12 MB');
+  const objectUrl=URL.createObjectURL(file);
+  try{
+    const img=await new Promise((resolve,reject)=>{const el=new Image();el.onload=()=>resolve(el);el.onerror=()=>reject(new Error('Could not read that icon image'));el.src=objectUrl;});
+    const canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;
+    const ctx=canvas.getContext('2d',{alpha:true});ctx.clearRect(0,0,size,size);
+    const scale=Math.min(size/img.naturalWidth,size/img.naturalHeight);
+    const w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale));
+    const x=Math.round((size-w)/2),y=Math.round((size-h)/2);
+    ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(img,x,y,w,h);
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png',0.96));
+    if(!blob) throw new Error('Could not create the 1:1 icon');
+    return new File([blob],'site-icon-512.png',{type:'image/png',lastModified:Date.now()});
+  }finally{URL.revokeObjectURL(objectUrl);}
+}
+
+$('#logoFile').addEventListener('change',async e=>{
+  const original=e.target.files?.[0]||null; state.logoFile=null; state.logoFile192=null;
+  if(!original) return;
+  const box=$('#logoPreview'); box.classList.add('processing'); box.textContent='Preparing standard 1:1 icons…';
+  try{
+    [state.logoFile,state.logoFile192]=await Promise.all([normalizeIconFile(original,512),normalizeIconFile(original,192)]);
+    const url=URL.createObjectURL(state.logoFile);
+    box.innerHTML=`<img src="${url}" alt="Business icon preview">`;
+    $('#iconNote').textContent='Ready: standard 1:1 PNG icons at 512×512 and 192×192. Artwork is fitted inside the square without cropping.';
+    updateSeoScore();
+  }catch(err){
+    e.target.value=''; state.logoFile=null; state.logoFile192=null; box.textContent='No icon'; $('#iconNote').textContent='Upload a PNG, JPG, WebP or SVG. Quartz will standardise it to square PNG icons automatically.'; showToast(err.message,true);
+  }finally{box.classList.remove('processing');}
+});
 
 async function uploadLogo(site){
-  const ext=(state.logoFile.name.split('.').pop()||'webp').toLowerCase().replace(/[^a-z0-9]/g,''); const path=`quartz-logo.${ext}`;
-  await uploadAsset(site.id,path,state.logoFile); state.current.logo_path=path;
-  await api(`/api/sites/${site.id}`,{method:'PUT',body:JSON.stringify({...getForm(site.status),logo_path:path})}); state.logoFile=null;
+  const path512='site-icon-512.png', path192='site-icon-192.png';
+  const previous=state.current?.logo_path||'';
+  await uploadAsset(site.id,path512,state.logoFile);
+  if(state.logoFile192) await uploadAsset(site.id,path192,state.logoFile192);
+  state.current.logo_path=path512;
+  await api(`/api/sites/${site.id}`,{method:'PUT',body:JSON.stringify({...getForm(site.status),logo_path:path512})});
+  if(previous && previous!==path512 && previous!==path192){ try{ await deleteAsset(site.id,previous); }catch(e){ console.warn('Old icon cleanup skipped',e); } }
+  state.logoFile=null; state.logoFile192=null;
 }
 async function uploadFolder(site){
   let done=0; $('#folderStatus').textContent=`Syncing website folder...`;
   const desired=new Set(state.folderFiles.map(x=>x.path));
-  if(state.current?.logo_path) desired.add(state.current.logo_path);
+  if(state.current?.logo_path){ desired.add(state.current.logo_path); if(state.current.logo_path==='site-icon-512.png') desired.add('site-icon-192.png'); }
   try{
     const existing=(await api(`/api/sites/${site.id}/assets`)).assets||[];
     for(const asset of existing){
@@ -129,7 +166,7 @@ async function uploadFolder(site){
 async function uploadAsset(id,path,file){ const res=await fetch(`/api/sites/${id}/assets?path=${encodeURIComponent(path)}`,{method:'PUT',credentials:'same-origin',headers:{'content-type':file.type||mimeFromName(file.name)},body:file});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||`Asset upload failed: ${path}`);return data; }
 async function deleteAsset(id,path){ const res=await fetch(`/api/sites/${id}/assets?path=${encodeURIComponent(path)}`,{method:'DELETE',credentials:'same-origin'});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||`Asset delete failed: ${path}`);return data; }
 
-function renderLogo(path){const box=$('#logoPreview'); if(!path||!state.current?.slug){box.textContent='No logo';return;} box.innerHTML=`<img src="https://quartzwebsolutions.com/${encodeURIComponent(state.current.slug)}/${path.split('/').map(encodeURIComponent).join('/')}?v=${Date.now()}" alt="Logo">`;}
+function renderLogo(path){const box=$('#logoPreview'); const note=$('#iconNote'); if(!path||!state.current?.slug){box.textContent='No icon';if(note)note.textContent='Upload any clear logo/icon. Quartz automatically creates standard 512×512 and 192×192 square PNGs without cropping, then uses them for favicon, installable icon and structured-data logo.';return;} box.innerHTML=`<img src="https://quartzwebsolutions.com/${encodeURIComponent(state.current.slug)}/${path.split('/').map(encodeURIComponent).join('/')}?v=${Date.now()}" alt="Business icon">`; if(note) note.textContent='Current 1:1 icon is active. Upload another image to replace it automatically.';}
 function updateLiveLink(){const a=$('#openLiveBtn');if(state.current?.slug&&state.current.status==='published'){a.href=`https://quartzwebsolutions.com/${state.current.slug}/`;a.classList.remove('hidden')}else a.classList.add('hidden');}
 function updatePreviewUrl(){const slug=slugify($('#siteSlug').value||$('#siteName').value);const a=$('#previewUrl');if(slug){a.textContent=`/${slug}/`;a.href=`https://quartzwebsolutions.com/${slug}/`;}else{a.textContent='—';a.removeAttribute('href');}}
 function autoSearchPhrases(){
@@ -143,7 +180,14 @@ function autoSearchPhrases(){
   services.slice(0,12).forEach(x=>{add(x);if(city){add(`${x} ${city}`);add(`${x} in ${city}`)}if(name)add(`${name} ${x}`)});
   return [...out].slice(0,40);
 }
-function updateSeoScore(){const vals={name:$('#siteName').value.trim(),slug:slugify($('#siteSlug').value||$('#siteName').value),primary:$('#primaryKeyword').value.trim(),keywords:$('#keywords').value.trim(),title:$('#seoTitle').value.trim(),description:$('#seoDescription').value.trim(),category:$('#category').value.trim(),type:$('#businessType').value,city:$('#city').value.trim(),address:$('#address').value.trim(),phone:$('#phone').value.trim(),hours:$('#openingHours').value.trim(),business:$('#businessDescription').value.trim(),html:$('#indexHtml').value.trim()};const checks=[['Business name',!!vals.name],['URL slug',!!vals.slug],['Primary keyword or strong business/category data',!!vals.primary||(!!vals.name&&!!vals.category&&!!vals.city)],['Secondary keywords / services',!!vals.keywords||!!$('#services').value.trim()],['SEO title or automatic title data',!!vals.title||(!!vals.name&&!!vals.category)],['Meta description or business description',!!vals.description||vals.business.length>60],['Category + schema type',!!vals.category&&!!vals.type],['City / location',!!vals.city],['Address / phone',!!vals.address&&!!vals.phone],['Opening hours',!!vals.hours],['Business description',vals.business.length>60],['index.html',vals.html.length>80]];const score=Math.round(checks.filter(x=>x[1]).length/checks.length*100);$('#seoScore').textContent=score;$('#seoChecks').innerHTML=checks.map(([n,ok])=>`<span class="seo-check ${ok?'ok':''}">${ok?'✓':'○'} ${n}</span>`).join('');const phrases=autoSearchPhrases();const box=$('#autoSearchPhrases');if(box)box.innerHTML=`<strong>Automatic local search phrases</strong><span>${phrases.length?phrases.map(esc).join(' · '):'Add business name, category, city and services to generate search phrases.'}</span>`;updatePreviewUrl();}
+function updateSeoScore(){
+  const vals={name:$('#siteName').value.trim(),slug:slugify($('#siteSlug').value||$('#siteName').value),primary:$('#primaryKeyword').value.trim(),keywords:$('#keywords').value.trim(),title:$('#seoTitle').value.trim(),description:$('#seoDescription').value.trim(),category:$('#category').value.trim(),type:$('#businessType').value,city:$('#city').value.trim(),address:$('#address').value.trim(),phone:$('#phone').value.trim(),hours:$('#openingHours').value.trim(),business:$('#businessDescription').value.trim(),html:$('#indexHtml').value.trim(),icon:!!state.logoFile||!!state.current?.logo_path};
+  const autoTitle=!!vals.name&&!!vals.category;
+  const autoDescription=vals.business.length>60||((!!vals.name&&!!vals.category)&&(!!vals.city||!!$('#services').value.trim()));
+  const checks=[['Business name',!!vals.name],['URL slug',!!vals.slug],['Primary keyword or strong business/category data',!!vals.primary||(!!vals.name&&!!vals.category&&!!vals.city)],['Secondary keywords / services',!!vals.keywords||!!$('#services').value.trim()],['SEO title or automatic title data',!!vals.title||autoTitle],['Meta description or automatic business description',!!vals.description||autoDescription],['Category + schema type',!!vals.category&&!!vals.type],['City / location',!!vals.city],['Address / phone',!!vals.address&&!!vals.phone],['Opening hours',!!vals.hours],['Business description',vals.business.length>60],['Business icon (1:1)',vals.icon],['index.html',vals.html.length>80]];
+  const score=Math.round(checks.filter(x=>x[1]).length/checks.length*100);$('#seoScore').textContent=score;$('#seoChecks').innerHTML=checks.map(([n,ok])=>`<span class="seo-check ${ok?'ok':''}">${ok?'✓':'○'} ${n}</span>`).join('');
+  const phrases=autoSearchPhrases();const box=$('#autoSearchPhrases');if(box)box.innerHTML=`<strong>Automatic local search phrases</strong><span>${phrases.length?phrases.map(esc).join(' · '):'Add business name, category, city and services to generate search phrases.'}</span>`;updatePreviewUrl();
+}
 function renderHtmlPreview(){clearTimeout(state.previewTimer);state.previewTimer=setTimeout(()=>{$('#htmlPreview').srcdoc=$('#indexHtml').value||'<p style="font-family:sans-serif;padding:20px">No HTML yet</p>';},250);}
 
 ['siteName','siteSlug','category','businessType','services','city','district','state','address','postalCode','phone','whatsapp','email','openingHours','businessDescription','primaryKeyword','keywords','seoTitle','seoDescription','indexHtml'].forEach(id=>$('#'+id).addEventListener('input',()=>{updateSeoScore();if(id==='indexHtml')renderHtmlPreview();if(id==='siteName'&&!$('#siteSlug').dataset.touched){$('#siteSlug').value=slugify($('#siteName').value);updatePreviewUrl();}}));

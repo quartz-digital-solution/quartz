@@ -57,7 +57,7 @@
 <div class="panel">
 <span class="kicker">WEBSITE</span><h2>Website details</h2>
 <div class="fields two"><label>Name<input id="siteName" placeholder="Royal Furniture" required=""/></label><label>URL slug<div class="slug-wrap"><span>quartzwebsolutions.com/</span><input id="siteSlug" placeholder="royal-furniture-kondotty" required=""/></div></label></div>
-<div class="fields two"><label>Category<input id="category" placeholder="Furniture Store"/></label><label>Schema business type<select id="businessType"><option>LocalBusiness</option><option>Store</option><option>Restaurant</option><option>Bakery</option><option>FurnitureStore</option><option>ClothingStore</option><option>ElectronicsStore</option><option>MobilePhoneStore</option><option>ConvenienceStore</option><option>GroceryStore</option><option>HardwareStore</option><option>HomeGoodsStore</option><option>JewelryStore</option><option>ShoeStore</option><option>AutoRepair</option><option>BeautySalon</option><option>HairSalon</option><option>TravelAgency</option><option>ProfessionalService</option><option>RealEstateAgent</option><option>Pharmacy</option><option>Florist</option><option>ComputerStore</option><option>CafeOrCoffeeShop</option><option>FastFoodRestaurant</option><option>Hotel</option></select></label></div>
+<div class="fields two"><label>Category<input id="category" placeholder="Furniture Store"/></label><label>Schema business type<select id="businessType"><option>LocalBusiness</option><option>Store</option><option>Restaurant</option><option>Bakery</option><option>FurnitureStore</option><option>ClothingStore</option><option>ElectronicsStore</option><option>MobilePhoneStore</option><option>ConvenienceStore</option><option>GroceryStore</option><option>HardwareStore</option><option>HomeGoodsStore</option><option>JewelryStore</option><option>ShoeStore</option><option>ToyStore</option><option>SportingGoodsStore</option><option>AutoRepair</option><option>BeautySalon</option><option>HairSalon</option><option>TravelAgency</option><option>ProfessionalService</option><option>RealEstateAgent</option><option>Pharmacy</option><option>Florist</option><option>ComputerStore</option><option>CafeOrCoffeeShop</option><option>FastFoodRestaurant</option><option>Hotel</option></select></label></div>
 <label>Products / services<input id="services" placeholder="Sofas, Beds, Tables"/></label>
 <div class="fields three"><label>City<input id="city" placeholder="Kondotty"/></label><label>District<input id="district" placeholder="Malappuram"/></label><label>State<input id="state" value="Kerala"/></label></div>
 <div class="fields two"><label>Address<textarea id="address" placeholder="Full business address" rows="2"></textarea></label><label>Postal code<input id="postalCode" placeholder="673638"/></label></div>
@@ -90,8 +90,9 @@ furniture store Malappuram" rows="6"></textarea></label><div class="auto-search-
 <div class="status-line"><span>Deployed</span><strong id="deployedAt">—</strong></div>
 <div class="status-line"><span>URL</span><a id="previewUrl" rel="noopener" target="_blank">—</a></div>
 <hr/>
-<label>Logo / social image<input accept="image/*" id="logoFile" type="file"/></label>
-<div class="logo-preview" id="logoPreview">No logo</div>
+<label>Business icon / logo (1:1)<input accept="image/png,image/jpeg,image/webp,image/svg+xml" id="logoFile" type="file"/></label>
+<div class="logo-preview" id="logoPreview">No icon</div>
+<p class="note icon-note" id="iconNote">Upload any clear logo/icon. Quartz automatically creates standard 512×512 and 192×192 square PNG icons without cropping the artwork, then uses them for favicon, installable icon and structured-data logo.</p>
 <hr/>
 <span class="kicker">PREVIEW</span>
 <iframe id="htmlPreview" sandbox="allow-scripts allow-forms allow-popups" title="Website preview"></iframe>

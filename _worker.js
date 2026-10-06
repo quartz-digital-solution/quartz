@@ -138,6 +138,20 @@ function normalizeBusinessType(value) {
   const v = String(value || 'LocalBusiness').trim();
   return ALLOWED_BUSINESS_TYPES.has(v) ? v : 'LocalBusiness';
 }
+function effectiveBusinessType(site) {
+  const explicit = normalizeBusinessType(site.business_type);
+  if (explicit !== 'LocalBusiness') return explicit;
+  let services=[]; try { services=JSON.parse(site.services_json||'[]'); } catch {}
+  const categoryText=String(site.category||'').toLowerCase();
+  const fullText=[site.category,site.name,...services].filter(Boolean).join(' ').toLowerCase();
+  const rules=[
+    [/\btoy|toys|collectible/, 'ToyStore'],[/\bbakery|cake|cakes|bakes?\b/, 'Bakery'],[/\brestaurant|dining|mandi|biryani|food\b/, 'Restaurant'],[/\bcafe|coffee\b/, 'CafeOrCoffeeShop'],[/\bfurniture|sofa|mattress\b/, 'FurnitureStore'],[/\bclothing|fashion|boutique|apparel|garment\b/, 'ClothingStore'],[/\bmobile|phone|smartphone\b/, 'MobilePhoneStore'],[/\belectronic|electronics\b/, 'ElectronicsStore'],[/\bgrocery|supermarket|provision\b/, 'GroceryStore'],[/\bhardware\b/, 'HardwareStore'],[/\bjewel|jewellery|jewelry\b/, 'JewelryStore'],[/\bshoe|footwear\b/, 'ShoeStore'],[/\bbeauty|cosmetic|salon\b/, 'BeautySalon'],[/\bhair|barber\b/, 'HairSalon'],[/\btravel|tour|visa\b/, 'TravelAgency'],[/\bpharmacy|medical store|chemist\b/, 'Pharmacy'],[/\bflower|florist\b/, 'Florist'],[/\bcomputer|laptop\b/, 'ComputerStore'],[/\bpet\b/, 'PetStore'],[/\bbook|stationery\b/, 'BookStore'],[/\bhotel|resort|lodg/, 'Hotel'],[/\bperfume|fragrance|fancy|gift\b/, 'Store']
+  ];
+  // Category is the strongest signal. Services are only a fallback.
+  for (const [re,type] of rules) if (re.test(categoryText)) return type;
+  for (const [re,type] of rules) if (re.test(fullText)) return type;
+  return 'LocalBusiness';
+}
 function sanitizeSiteInput(body) {
   const slug = normalizeSlug(body.slug || body.name);
   const status = body.status === 'published' ? 'published' : 'draft';
@@ -455,8 +469,9 @@ function absolutePageAsset(src, canonical) {
   try { return new URL(v, canonical).toString(); } catch { return ''; }
 }
 function pageImage(site, htmlText, canonical) {
-  if (site.logo_path) return `${BASE_URL}/${site.slug}/${site.logo_path.replace(/^\/+/, '')}`;
-  return absolutePageAsset(extractMetaProperty(htmlText,'og:image') || firstImageSrc(htmlText), canonical);
+  const contentImage = absolutePageAsset(extractMetaProperty(htmlText,'og:image') || firstImageSrc(htmlText), canonical);
+  if (contentImage) return contentImage;
+  return site.logo_path ? `${BASE_URL}/${site.slug}/${site.logo_path.replace(/^\/+/, '')}` : '';
 }
 function imageAltFromSrc(src, site) {
   const base=humanizeSegment(String(src||'').split('/').pop().split('?')[0].replace(/\.[a-z0-9]{2,8}$/i,''));
@@ -502,7 +517,7 @@ function schemaGraph(site, seo, canonical, image, logo) {
   const openingHours = (()=>{try{return JSON.parse(site.opening_hours_json||'[]')}catch{return[]}})();
   const hasAddress = site.address || site.city || site.district || site.postal_code;
   const business = {
-    '@type': normalizeBusinessType(site.business_type),
+    '@type': effectiveBusinessType(site),
     '@id': seo.rootCanonical + '#business',
     name: site.name,
     url: seo.rootCanonical,
@@ -563,6 +578,7 @@ function injectSeo(site, htmlText, canonical) {
   out = enhanceImageSeo(out, site);
   const seo = pageSeo(site, out, canonical);
   const logo = site.logo_path ? `${BASE_URL}/${site.slug}/${site.logo_path.replace(/^\/+/, '')}` : '';
+  const icon192 = site.logo_path === 'site-icon-512.png' ? `${BASE_URL}/${site.slug}/site-icon-192.png` : logo;
   const image = pageImage(site, out, canonical);
   const schemaText = JSON.stringify(schemaGraph(site,seo,canonical,image,logo)).replace(/<\//g,'<\\/');
   if (!/<html[\s>]/i.test(out)) out = `<!doctype html><html lang="en-IN"><head></head><body>${out}</body></html>`;
@@ -573,6 +589,9 @@ function injectSeo(site, htmlText, canonical) {
     // Meta keywords are intentionally removed. Google does not use them.
     head = head.replace(/<meta\s+[^>]*name=["']keywords["'][^>]*>\s*/gi,'');
     head = head.replace(/<script[^>]+data-quartz-seo=["']true["'][^>]*>[\s\S]*?<\/script>\s*/gi,'');
+    if (logo) {
+      head = head.replace(/<link\b[^>]*\brel=["'][^"']*(?:icon|apple-touch-icon|manifest)[^"']*["'][^>]*>\s*/gi,'');
+    }
     head = replaceOrInsert(head, /<meta\s+charset=["']?[^>]+>/i, '<meta charset="utf-8">');
     head = replaceOrInsert(head, /<meta\s+name=["']viewport["'][^>]*>/i, '<meta name="viewport" content="width=device-width,initial-scale=1">');
     head = replaceOrInsert(head, /<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(seo.title)}</title>`);
@@ -594,6 +613,12 @@ function injectSeo(site, htmlText, canonical) {
     if(image){
       head = replaceOrInsert(head, /<meta\s+name=["']twitter:image["'][^>]*>/i, `<meta name="twitter:image" content="${escapeAttr(image)}">`);
       head = replaceOrInsert(head, /<meta\s+name=["']twitter:image:alt["'][^>]*>/i, `<meta name="twitter:image:alt" content="${escapeAttr(`${site.name}${site.city?` in ${site.city}`:''}`)}">`);
+    }
+    if(logo){
+      head += `\n<link rel="icon" type="image/png" sizes="192x192" href="${escapeAttr(icon192)}">`;
+      head += `\n<link rel="icon" type="image/png" sizes="512x512" href="${escapeAttr(logo)}">`;
+      head += `\n<link rel="apple-touch-icon" sizes="180x180" href="${escapeAttr(icon192)}">`;
+      head += `\n<link rel="manifest" href="/${encodeURIComponent(site.slug)}/site.webmanifest">`;
     }
     head += `\n<script type="application/ld+json" data-quartz-seo="true">${schemaText}</script>`;
     return `<head${attrs}>${head}</head>`;
@@ -624,9 +649,23 @@ async function serveConnected(request, env, url) {
     const rendered = injectSeo(site, site.index_html, canonical);
     return new Response(rendered, { headers:{ 'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=60, must-revalidate','x-quartz-site':site.slug } });
   }
+  if (/^site\.webmanifest$/i.test(rest)) {
+    const icon512 = site.logo_path ? `${BASE_URL}/${site.slug}/${site.logo_path.replace(/^\/+/, '')}` : '';
+    const icon192 = site.logo_path === 'site-icon-512.png' ? `${BASE_URL}/${site.slug}/site-icon-192.png` : icon512;
+    const manifest = {
+      id:`/${site.slug}/`, name:site.name, short_name:String(site.name||'Business').slice(0,30),
+      start_url:`/${site.slug}/`, scope:`/${site.slug}/`, display:'standalone',
+      background_color:'#ffffff', theme_color:'#ffffff',
+      icons: icon512 ? [
+        {src:icon192,sizes:'192x192',type:'image/png',purpose:'any'},
+        {src:icon512,sizes:'512x512',type:'image/png',purpose:'any'}
+      ] : []
+    };
+    return new Response(JSON.stringify(manifest), { headers:{'content-type':'application/manifest+json; charset=utf-8','cache-control':'public, max-age=300, must-revalidate'} });
+  }
   if (!env.SITES_BUCKET) return new Response('Site asset storage is not configured', { status:503 });
 
-  const candidates = [rest];
+  const candidates = /^site-icon-192\.png$/i.test(rest) ? [rest,'site-icon-512.png'] : [rest];
   if (!rest.includes('.')) candidates.push(rest.replace(/\/$/,'') + '/index.html', rest.replace(/\/$/,'') + '.html');
   for (const candidate of candidates) {
     const obj = await getR2Object(env, site.id, candidate);
