@@ -1,10 +1,23 @@
 const $ = s => document.querySelector(s);
-const state = { sites: [], current: null, folderFiles: [], logoFile: null, logoFile192: null, previewTimer: null };
+const state = { sites: [], current: null, folderFiles: [], logoFile: null, logoFile192: null, logoFile180: null, previewTimer: null };
 const els = {
   loginView: $('#loginView'), appView: $('#appView'), loginForm: $('#loginForm'), loginId: $('#loginId'), loginError: $('#loginError'),
   sitesView: $('#sitesView'), editorView: $('#editorView'), siteList: $('#siteList'), emptyState: $('#emptyState'), searchInput: $('#searchInput'),
   totalCount: $('#totalCount'), liveCount: $('#liveCount'), draftCount: $('#draftCount'), siteForm: $('#siteForm'), saveToast: $('#saveToast')
 };
+
+let loadingDepth = 0;
+function setGlobalLoading(active){
+  const el = document.getElementById('globalLoader');
+  if(active) loadingDepth += 1; else loadingDepth = Math.max(0, loadingDepth - 1);
+  const visible = loadingDepth > 0;
+  if(el) el.classList.toggle('hidden', !visible);
+  document.body.classList.toggle('admin-loading', visible);
+}
+async function withGlobalLoading(task){
+  setGlobalLoading(true);
+  try { return await task(); } finally { setGlobalLoading(false); }
+}
 
 async function api(path, options = {}) {
   const res = await fetch(path, { credentials: 'same-origin', ...options, headers: { ...(options.body && !(options.body instanceof Blob) ? {'content-type':'application/json'} : {}), ...(options.headers || {}) } });
@@ -21,14 +34,18 @@ function showToast(text, error=false) {
 }
 
 async function boot() {
+  setGlobalLoading(true);
   try { await api('/api/admin/me'); showApp(); await loadSites(); }
   catch { els.loginView.classList.remove('hidden'); els.appView.classList.add('hidden'); }
+  finally { setGlobalLoading(false); }
 }
 
 els.loginForm.addEventListener('submit', async e => {
   e.preventDefault(); els.loginError.textContent = '';
-  try { await api('/api/admin/login', { method:'POST', body:JSON.stringify({ loginId: els.loginId.value.trim() }) }); showApp(); await loadSites(); }
-  catch (e) { els.loginError.textContent = e.message; }
+  await withGlobalLoading(async()=>{
+    try { await api('/api/admin/login', { method:'POST', body:JSON.stringify({ loginId: els.loginId.value.trim() }) }); showApp(); await loadSites(); }
+    catch (e) { els.loginError.textContent = e.message; }
+  });
 });
 
 function showApp(){ els.loginView.classList.add('hidden'); els.appView.classList.remove('hidden'); }
@@ -36,7 +53,7 @@ $('#logoutBtn').onclick = async () => { await api('/api/admin/logout',{method:'P
 $('#newSiteBtn').onclick = openNew;
 $('#topNewSiteBtn').onclick = openNew;
 $('#backBtn').onclick = () => showSites();
-$('#refreshBtn').onclick = () => loadSites();
+$('#refreshBtn').onclick = () => withGlobalLoading(()=>loadSites());
 $('#searchInput').addEventListener('input', debounce(() => loadSites(els.searchInput.value), 250));
 
 async function loadSites(q='') {
@@ -63,8 +80,8 @@ function showSites(){ els.sitesView.classList.remove('hidden'); els.editorView.c
 function showEditor(){ els.sitesView.classList.add('hidden'); els.editorView.classList.remove('hidden'); scrollTo({top:0,behavior:'instant'}); }
 
 function blankSite(){ return { name:'',slug:'',status:'draft',logo_path:'',seo_title:'',seo_description:'',primary_keyword:'',keywords:[],category:'',business_type:'LocalBusiness',city:'',district:'',state:'Kerala',country_code:'IN',address:'',postal_code:'',phone:'',whatsapp:'',email:'',opening_hours:[],business_description:'',services:[],index_html:'<!doctype html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>Business Website</title>\n</head>\n<body>\n  <main>\n    <h1>Business Name</h1>\n    <p>Add the real business content here.</p>\n  </main>\n</body>\n</html>' }; }
-function openNew(){ state.current=null; state.folderFiles=[]; state.logoFile=null; state.logoFile192=null; fillForm(blankSite()); $('#deleteBtn').classList.add('hidden'); $('#openLiveBtn').classList.add('hidden'); showEditor(); }
-async function openEdit(id){ const data=await api(`/api/sites/${id}`); state.current=data.site; state.folderFiles=[]; state.logoFile=null; state.logoFile192=null; fillForm(data.site); $('#deleteBtn').classList.remove('hidden'); updateLiveLink(); showEditor(); }
+function openNew(){ state.current=null; state.folderFiles=[]; state.logoFile=null; state.logoFile192=null; state.logoFile180=null; fillForm(blankSite()); $('#deleteBtn').classList.add('hidden'); $('#openLiveBtn').classList.add('hidden'); showEditor(); }
+async function openEdit(id){ await withGlobalLoading(async()=>{ const data=await api(`/api/sites/${id}`); state.current=data.site; state.folderFiles=[]; state.logoFile=null; state.logoFile192=null; state.logoFile180=null; fillForm(data.site); $('#deleteBtn').classList.remove('hidden'); updateLiveLink(); showEditor(); }); }
 
 function fillForm(s){
   $('#siteName').value=s.name||''; $('#siteSlug').value=s.slug||''; $('#category').value=s.category||''; $('#businessType').value=s.business_type||'LocalBusiness'; $('#services').value=(s.services||[]).join(', '); $('#city').value=s.city||''; $('#district').value=s.district||''; $('#state').value=s.state||'Kerala'; $('#address').value=s.address||''; $('#postalCode').value=s.postal_code||''; $('#phone').value=s.phone||''; $('#whatsapp').value=s.whatsapp||''; $('#email').value=s.email||''; $('#openingHours').value=(s.opening_hours||[]).join('\n'); $('#businessDescription').value=s.business_description||''; $('#primaryKeyword').value=s.primary_keyword||''; $('#keywords').value=(s.keywords||[]).join('\n'); $('#seoTitle').value=s.seo_title||''; $('#seoDescription').value=s.seo_description||''; $('#indexHtml').value=s.index_html||'';
@@ -81,21 +98,24 @@ function getForm(status){
 async function save(status){
   const payload=getForm(status);
   if(!payload.name||!payload.slug||!payload.index_html.trim()){showToast('Name, URL slug and index.html are required',true);return;}
+  if(status==='published' && !(state.logoFile || state.current?.logo_path)){showToast('Upload the client icon/logo before deploying so the website is fully installable as a PWA.',true);return;}
   $('#siteSlug').value=payload.slug;
-  try{
-    let site;
-    if(state.current?.id){ site=(await api(`/api/sites/${state.current.id}`,{method:'PUT',body:JSON.stringify(payload)})).site; }
-    else { site=(await api('/api/sites',{method:'POST',body:JSON.stringify(payload)})).site; }
-    state.current=site;
-    if(state.logoFile) await uploadLogo(site);
-    if(state.folderFiles.length) await uploadFolder(site);
-    if(state.logoFile || state.logoFile192 || state.folderFiles.length) state.current=(await api(`/api/sites/${site.id}`)).site;
-    fillForm(state.current); $('#deleteBtn').classList.remove('hidden'); updateLiveLink(); showToast(status==='published'?'Website deployed':'Draft saved'); await loadSites();
-  }catch(e){showToast(e.message,true);}
+  await withGlobalLoading(async()=>{
+    try{
+      let site;
+      if(state.current?.id){ site=(await api(`/api/sites/${state.current.id}`,{method:'PUT',body:JSON.stringify(payload)})).site; }
+      else { site=(await api('/api/sites',{method:'POST',body:JSON.stringify(payload)})).site; }
+      state.current=site;
+      if(state.logoFile) await uploadLogo(site);
+      if(state.folderFiles.length) await uploadFolder(site);
+      if(state.logoFile || state.logoFile192 || state.logoFile180 || state.folderFiles.length) state.current=(await api(`/api/sites/${site.id}`)).site;
+      fillForm(state.current); $('#deleteBtn').classList.remove('hidden'); updateLiveLink(); showToast(status==='published'?'Website deployed · PWA ready':'Draft saved'); await loadSites();
+    }catch(e){showToast(e.message,true);}
+  });
 }
 $('#saveDraftBtn').onclick=()=>save('draft'); $('#publishBtn').onclick=()=>save('published');
 
-$('#deleteBtn').onclick=async()=>{ if(!state.current?.id)return; if(!confirm(`Delete ${state.current.name}? This removes its stored assets too.`))return; try{await api(`/api/sites/${state.current.id}`,{method:'DELETE'});showToast('Website deleted');showSites();await loadSites();}catch(e){showToast(e.message,true);} };
+$('#deleteBtn').onclick=async()=>{ if(!state.current?.id)return; if(!confirm(`Delete ${state.current.name}? This removes its stored assets too.`))return; await withGlobalLoading(async()=>{ try{await api(`/api/sites/${state.current.id}`,{method:'DELETE'});showToast('Website deleted');showSites();await loadSites();}catch(e){showToast(e.message,true);} }); };
 
 $('#indexFile').addEventListener('change', async e=>{const f=e.target.files?.[0];if(!f)return;$('#indexHtml').value=await f.text();renderHtmlPreview();updateSeoScore();});
 $('#folderFiles').addEventListener('change', async e=>{
@@ -125,34 +145,35 @@ async function normalizeIconFile(file, size=512){
 }
 
 $('#logoFile').addEventListener('change',async e=>{
-  const original=e.target.files?.[0]||null; state.logoFile=null; state.logoFile192=null;
+  const original=e.target.files?.[0]||null; state.logoFile=null; state.logoFile192=null; state.logoFile180=null;
   if(!original) return;
-  const box=$('#logoPreview'); box.classList.add('processing'); box.textContent='Preparing standard 1:1 icons…';
+  const box=$('#logoPreview'); box.classList.add('processing'); box.innerHTML='<div class="mini-dot-loader" aria-label="Preparing icon"><span></span><span></span><span></span></div>';
   try{
-    [state.logoFile,state.logoFile192]=await Promise.all([normalizeIconFile(original,512),normalizeIconFile(original,192)]);
+    [state.logoFile,state.logoFile192,state.logoFile180]=await Promise.all([normalizeIconFile(original,512),normalizeIconFile(original,192),normalizeIconFile(original,180)]);
     const url=URL.createObjectURL(state.logoFile);
     box.innerHTML=`<img src="${url}" alt="Business icon preview">`;
-    $('#iconNote').textContent='Ready: standard 1:1 PNG icons at 512×512 and 192×192. Artwork is fitted inside the square without cropping.';
+    $('#iconNote').textContent='Ready: exact uploaded artwork fitted without cropping into standard 512×512, 192×192 and 180×180 PNG icons.';
     updateSeoScore();
   }catch(err){
-    e.target.value=''; state.logoFile=null; state.logoFile192=null; box.textContent='No icon'; $('#iconNote').textContent='Upload a PNG, JPG, WebP or SVG. Quartz will standardise it to square PNG icons automatically.'; showToast(err.message,true);
+    e.target.value=''; state.logoFile=null; state.logoFile192=null; state.logoFile180=null; box.textContent='No icon'; $('#iconNote').textContent='Upload a PNG, JPG, WebP or SVG. Quartz will standardise it to square PNG icons automatically.'; showToast(err.message,true);
   }finally{box.classList.remove('processing');}
 });
 
 async function uploadLogo(site){
-  const path512='site-icon-512.png', path192='site-icon-192.png';
+  const path512='site-icon-512.png', path192='site-icon-192.png', path180='site-icon-180.png';
   const previous=state.current?.logo_path||'';
   await uploadAsset(site.id,path512,state.logoFile);
   if(state.logoFile192) await uploadAsset(site.id,path192,state.logoFile192);
+  if(state.logoFile180) await uploadAsset(site.id,path180,state.logoFile180);
   state.current.logo_path=path512;
   await api(`/api/sites/${site.id}`,{method:'PUT',body:JSON.stringify({...getForm(site.status),logo_path:path512})});
-  if(previous && previous!==path512 && previous!==path192){ try{ await deleteAsset(site.id,previous); }catch(e){ console.warn('Old icon cleanup skipped',e); } }
-  state.logoFile=null; state.logoFile192=null;
+  if(previous && previous!==path512 && previous!==path192 && previous!==path180){ try{ await deleteAsset(site.id,previous); }catch(e){ console.warn('Old icon cleanup skipped',e); } }
+  state.logoFile=null; state.logoFile192=null; state.logoFile180=null;
 }
 async function uploadFolder(site){
   let done=0; $('#folderStatus').textContent=`Syncing website folder...`;
   const desired=new Set(state.folderFiles.map(x=>x.path));
-  if(state.current?.logo_path){ desired.add(state.current.logo_path); if(state.current.logo_path==='site-icon-512.png') desired.add('site-icon-192.png'); }
+  if(state.current?.logo_path){ desired.add(state.current.logo_path); if(state.current.logo_path==='site-icon-512.png'){ desired.add('site-icon-192.png'); desired.add('site-icon-180.png'); } }
   try{
     const existing=(await api(`/api/sites/${site.id}/assets`)).assets||[];
     for(const asset of existing){
@@ -166,7 +187,7 @@ async function uploadFolder(site){
 async function uploadAsset(id,path,file){ const res=await fetch(`/api/sites/${id}/assets?path=${encodeURIComponent(path)}`,{method:'PUT',credentials:'same-origin',headers:{'content-type':file.type||mimeFromName(file.name)},body:file});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||`Asset upload failed: ${path}`);return data; }
 async function deleteAsset(id,path){ const res=await fetch(`/api/sites/${id}/assets?path=${encodeURIComponent(path)}`,{method:'DELETE',credentials:'same-origin'});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||`Asset delete failed: ${path}`);return data; }
 
-function renderLogo(path){const box=$('#logoPreview'); const note=$('#iconNote'); if(!path||!state.current?.slug){box.textContent='No icon';if(note)note.textContent='Upload any clear logo/icon. Quartz automatically creates standard 512×512 and 192×192 square PNGs without cropping, then uses them for favicon, installable icon and structured-data logo.';return;} box.innerHTML=`<img src="https://quartzwebsolutions.com/${encodeURIComponent(state.current.slug)}/${path.split('/').map(encodeURIComponent).join('/')}?v=${Date.now()}" alt="Business icon">`; if(note) note.textContent='Current 1:1 icon is active. Upload another image to replace it automatically.';}
+function renderLogo(path){const box=$('#logoPreview'); const note=$('#iconNote'); if(!path||!state.current?.slug){box.textContent='No icon';if(note)note.textContent='Upload any clear logo/icon. Quartz automatically creates 512×512, 192×192 and 180×180 square PNG icons without cropping the artwork, then uses that same client logo for favicon, PWA install icon, Apple icon and structured-data logo.';return;} box.innerHTML=`<img src="https://quartzwebsolutions.com/${encodeURIComponent(state.current.slug)}/${path.split('/').map(encodeURIComponent).join('/')}?v=${Date.now()}" alt="Business icon">`; if(note) note.textContent='Current 1:1 icon is active. Upload another image to replace it automatically.';}
 function updateLiveLink(){const a=$('#openLiveBtn');if(state.current?.slug&&state.current.status==='published'){a.href=`https://quartzwebsolutions.com/${state.current.slug}/`;a.classList.remove('hidden')}else a.classList.add('hidden');}
 function updatePreviewUrl(){const slug=slugify($('#siteSlug').value||$('#siteName').value);const a=$('#previewUrl');if(slug){a.textContent=`/${slug}/`;a.href=`https://quartzwebsolutions.com/${slug}/`;}else{a.textContent='—';a.removeAttribute('href');}}
 function autoSearchPhrases(){

@@ -619,14 +619,28 @@ function injectSeo(site, htmlText, canonical) {
       head = replaceOrInsert(head, /<meta\s+name=["']twitter:image:alt["'][^>]*>/i, `<meta name="twitter:image:alt" content="${escapeAttr(`${site.name}${site.city?` in ${site.city}`:''}`)}">`);
     }
     if(logo){
+      const icon180 = `${BASE_URL}/${site.slug}/site-icon-180.png`;
+      head += `\n<meta name="theme-color" content="#ffffff">`;
+      head += `\n<meta name="mobile-web-app-capable" content="yes">`;
+      head += `\n<meta name="apple-mobile-web-app-capable" content="yes">`;
+      head += `\n<meta name="apple-mobile-web-app-status-bar-style" content="default">`;
+      head += `\n<meta name="apple-mobile-web-app-title" content="${escapeAttr(site.name)}">`;
       head += `\n<link rel="icon" type="image/png" sizes="192x192" href="${escapeAttr(icon192)}">`;
       head += `\n<link rel="icon" type="image/png" sizes="512x512" href="${escapeAttr(logo)}">`;
-      head += `\n<link rel="apple-touch-icon" sizes="180x180" href="${escapeAttr(icon192)}">`;
+      head += `\n<link rel="apple-touch-icon" sizes="180x180" href="${escapeAttr(icon180)}">`;
       head += `\n<link rel="manifest" href="/${encodeURIComponent(site.slug)}/site.webmanifest">`;
     }
     head += `\n<script type="application/ld+json" data-quartz-seo="true">${schemaText}</script>`;
     return `<head${attrs}>${head}</head>`;
   });
+  if (logo) {
+    out = out.replace(/<script[^>]+data-quartz-pwa=["']true["'][^>]*>[\s\S]*?<\/script>\s*/gi,'');
+    const scope = `/${site.slug}/`;
+    const sw = `${scope}sw.js`;
+    const pwaScript = `<script data-quartz-pwa="true">if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('${sw}',{scope:'${scope}'}).catch(function(){});});}<\/script>`;
+    if (/<\/body>/i.test(out)) out = out.replace(/<\/body>/i, pwaScript + '</body>');
+    else out += pwaScript;
+  }
   return out;
 }
 
@@ -656,20 +670,39 @@ async function serveConnected(request, env, url) {
   if (/^site\.webmanifest$/i.test(rest)) {
     const icon512 = site.logo_path ? `${BASE_URL}/${site.slug}/${site.logo_path.replace(/^\/+/, '')}` : '';
     const icon192 = site.logo_path === 'site-icon-512.png' ? `${BASE_URL}/${site.slug}/site-icon-192.png` : icon512;
+    const icon180 = site.logo_path === 'site-icon-512.png' ? `${BASE_URL}/${site.slug}/site-icon-180.png` : icon512;
     const manifest = {
-      id:`/${site.slug}/`, name:site.name, short_name:String(site.name||'Business').slice(0,30),
-      start_url:`/${site.slug}/`, scope:`/${site.slug}/`, display:'standalone',
-      background_color:'#ffffff', theme_color:'#ffffff',
+      id:`/${site.slug}/`,
+      name:site.name,
+      short_name:String(site.name||'Business').slice(0,24),
+      description:stripTags(site.business_description || `${site.name}${site.category?` · ${site.category}`:''}${site.city?` in ${site.city}`:''}`).slice(0,180),
+      start_url:`/${site.slug}/`,
+      scope:`/${site.slug}/`,
+      display:'standalone',
+      display_override:['standalone','minimal-ui'],
+      background_color:'#ffffff',
+      theme_color:'#ffffff',
+      orientation:'any',
+      prefer_related_applications:false,
       icons: icon512 ? [
         {src:icon192,sizes:'192x192',type:'image/png',purpose:'any'},
-        {src:icon512,sizes:'512x512',type:'image/png',purpose:'any'}
+        {src:icon512,sizes:'512x512',type:'image/png',purpose:'any'},
+        {src:icon180,sizes:'180x180',type:'image/png',purpose:'any'}
       ] : []
     };
     return new Response(JSON.stringify(manifest), { headers:{'content-type':'application/manifest+json; charset=utf-8','cache-control':'public, max-age=300, must-revalidate'} });
   }
+  if (/^(?:sw|service-worker)\.js$/i.test(rest)) {
+    const scope = `/${site.slug}/`;
+    const version = String(site.updated_at || site.deployed_at || '1').replace(/[^0-9A-Za-z]/g,'').slice(-24) || '1';
+    const cacheName = `quartz-client-${site.slug}-${version}`;
+    const precache = [scope, `${scope}site.webmanifest`, `${scope}site-icon-192.png`, `${scope}site-icon-512.png`, `${scope}site-icon-180.png`];
+    const sw = `const CACHE=${JSON.stringify(cacheName)};const SCOPE=${JSON.stringify(scope)};const PRECACHE=${JSON.stringify(precache)};self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>Promise.allSettled(PRECACHE.map(u=>c.add(u)))));self.skipWaiting();});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('quartz-client-${site.slug}-')&&k!==CACHE).map(k=>caches.delete(k)))));self.clients.claim();});self.addEventListener('fetch',e=>{const r=e.request;if(r.method!=='GET')return;const u=new URL(r.url);if(u.origin!==self.location.origin||!u.pathname.startsWith(SCOPE))return;e.respondWith(fetch(r).then(res=>{if(res&&res.ok){const copy=res.clone();caches.open(CACHE).then(c=>c.put(r,copy)).catch(()=>{});}return res;}).catch(()=>caches.match(r).then(hit=>hit||caches.match(SCOPE))));});`;
+    return new Response(sw,{headers:{'content-type':'application/javascript; charset=utf-8','cache-control':'no-cache, no-store, must-revalidate','service-worker-allowed':scope,'x-content-type-options':'nosniff'}});
+  }
   if (!env.SITES_BUCKET) return new Response('Site asset storage is not configured', { status:503 });
 
-  const candidates = /^site-icon-192\.png$/i.test(rest) ? [rest,'site-icon-512.png'] : [rest];
+  const candidates = /^(?:site-icon-192|site-icon-180)\.png$/i.test(rest) ? [rest,'site-icon-512.png'] : [rest];
   if (!rest.includes('.')) candidates.push(rest.replace(/\/$/,'') + '/index.html', rest.replace(/\/$/,'') + '.html');
   for (const candidate of candidates) {
     const obj = await getR2Object(env, site.id, candidate);

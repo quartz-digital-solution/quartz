@@ -12,6 +12,10 @@
 <link href="/admin/admin.css" rel="stylesheet"/>
 <link href="/asset/img/fav/favicon-32.png" rel="icon" sizes="32x32" type="image/png"/><link href="/asset/img/fav/favicon-16.png" rel="icon" sizes="16x16" type="image/png"/><link href="/asset/img/fav/favicon.ico" rel="shortcut icon"/><link href="/asset/img/fav/icon-180.png" rel="apple-touch-icon" sizes="180x180"/><link href="/site.webmanifest" rel="manifest"/></head>
 <body>
+<div class="global-loader" id="globalLoader" role="status" aria-live="polite" aria-label="Loading">
+  <div class="admin-dot-loader" aria-hidden="true"><span></span><span></span><span></span></div>
+</div>
+
 <div class="login-view" id="loginView">
 <form class="login-card" id="loginForm">
 <img alt="Quartz Web Solutions" src="/asset/img/logo/quartz.png"/>
@@ -92,7 +96,7 @@ furniture store Malappuram" rows="6"></textarea></label><div class="auto-search-
 <hr/>
 <label>Business icon / logo (1:1)<input accept="image/png,image/jpeg,image/webp,image/svg+xml" id="logoFile" type="file"/></label>
 <div class="logo-preview" id="logoPreview">No icon</div>
-<p class="note icon-note" id="iconNote">Upload any clear logo/icon. Quartz automatically creates standard 512×512 and 192×192 square PNG icons without cropping the artwork, then uses them for favicon, installable icon and structured-data logo.</p>
+<p class="note icon-note" id="iconNote">Upload the client logo/icon once. Quartz preserves the artwork without cropping and automatically creates standard 512×512, 192×192 and 180×180 PNG icons for favicon, installable PWA icon, Apple icon and structured-data logo.</p>
 <hr/>
 <span class="kicker">PREVIEW</span>
 <iframe id="htmlPreview" sandbox="allow-scripts allow-forms allow-popups" title="Website preview"></iframe>
