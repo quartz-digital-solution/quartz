@@ -76,8 +76,12 @@ async function isAdmin(request, env) {
 
 async function ensureSchema(env) {
   if (!env.DB) throw new Error('D1 binding DB is not configured');
-  await env.DB.exec(`
-    CREATE TABLE IF NOT EXISTS connected_sites (
+
+  // IMPORTANT: Do not use D1 exec() with a multi-line CREATE TABLE statement.
+  // D1 exec() treats newlines as statement separators, which can split the
+  // CREATE TABLE after the opening parenthesis and cause an "incomplete input" error.
+  // Run each schema statement as one prepared statement instead.
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS connected_sites (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL UNIQUE,
       name TEXT NOT NULL,
@@ -105,10 +109,10 @@ async function ensureSchema(env) {
       deployed_at TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE INDEX IF NOT EXISTS idx_connected_sites_slug ON connected_sites(slug);
-    CREATE INDEX IF NOT EXISTS idx_connected_sites_status ON connected_sites(status);
-  `);
+    )`).run();
+
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_connected_sites_slug ON connected_sites(slug)').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_connected_sites_status ON connected_sites(status)').run();
 
   // Safe automatic migration for databases created by earlier Quartz builds.
   const info = await env.DB.prepare('PRAGMA table_info(connected_sites)').all();
@@ -122,7 +126,7 @@ async function ensureSchema(env) {
   ];
   for (const [name, type] of migrations) {
     if (existing.has(name)) continue;
-    try { await env.DB.exec(`ALTER TABLE connected_sites ADD COLUMN ${name} ${type};`); }
+    try { await env.DB.prepare(`ALTER TABLE connected_sites ADD COLUMN ${name} ${type}`).run(); }
     catch (e) { if (!String(e).toLowerCase().includes('duplicate column')) throw e; }
   }
 }
