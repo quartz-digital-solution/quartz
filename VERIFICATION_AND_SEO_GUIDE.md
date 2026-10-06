@@ -1,55 +1,52 @@
-# Quartz Web Solutions — SEO & Indexing Verification Guide
+# Quartz SEO + Google indexing guide
 
-## Main canonical identity
+## What the platform now does automatically
 
-- Business: **Quartz Web Solutions**
-- Canonical website: **https://quartzwebsolutions.com/**
-- Founder: **Sabith Salah K P**
-- Founder page: **https://quartzwebsolutions.com/sabith-salah-kp/**
-- Business Instagram: **https://www.instagram.com/quartz_web_solution/**
+- Every published connected site gets a clean canonical URL under `https://quartzwebsolutions.com/<site-slug>/`.
+- Root pages and uploaded multi-page HTML files receive unique page titles/descriptions, `index,follow`, Open Graph/Twitter metadata, LocalBusiness + WebSite + WebPage + breadcrumb structured data, and image metadata.
+- Quartz removes `meta keywords` because Google does not use that tag.
+- Business name, category, city, district, services, address, phone, opening hours, map, geo coordinates, social links, business description, primary keyword, secondary keywords, HTML and logo all feed the SEO renderer.
+- Editing any of those fields and clicking Deploy updates SEO immediately and updates that site's sitemap `lastmod`. Uploading/replacing assets also updates the modification time.
+- Uploaded HTML subpages are discovered and added to the dynamic sitemap.
+- Published sites are linked from `/businesses/` and city directory pages, improving crawl discovery.
+- Connected-site titles/snippets do not inject the Quartz brand. The public URL will still contain `quartzwebsolutions.com`; Google controls exactly how the host/site name appears in results. A separate custom domain is required if a client wants no Quartz domain visible at all.
 
-## Production SEO included
+## One-time Google Search Console setup (manual)
 
-- unique Quartz landing-page titles/descriptions
-- canonical URLs
-- index/follow crawler directives
-- www → non-www permanent redirect
-- robots.txt with sitemap declaration
-- live dynamic sitemap
-- Organization/WebSite/WebPage/Person/Service/Breadcrumb structured data on Quartz pages
-- automatic connected-site LocalBusiness/WebPage/Breadcrumb schema
-- automatic multi-page connected-site canonicals and sitemap entries
-- no `meta keywords` injection
-- admin and error responses protected from indexing
-- connected-page lastmod based on actual D1/R2 update timestamps
+1. Open Google Search Console and add a **Domain property** for `quartzwebsolutions.com`.
+2. Google gives a TXT verification value. In Cloudflare: **DNS → Records → Add record → TXT**, use the name/value Google provides.
+3. Return to Search Console and verify.
+4. Open **Sitemaps** and submit: `https://quartzwebsolutions.com/sitemap.xml`. Do this once. The sitemap itself updates automatically later.
+5. Use **URL Inspection** for `https://quartzwebsolutions.com/` and request indexing once after launch or a major redesign.
 
-## Verify after every major deployment
+## For each new connected business
 
-Open these URLs:
+Normally you do **not** have to manually submit every business. Publish it, and Quartz automatically adds its URL and HTML subpages to the sitemap and business directory. Google then decides when to crawl/index it.
 
-- https://quartzwebsolutions.com/
-- https://quartzwebsolutions.com/robots.txt
-- https://quartzwebsolutions.com/sitemap.xml
-- https://quartzwebsolutions.com/sabith-salah-kp/
-- https://quartzwebsolutions.com/services/website-development/
+For an important new client that you want discovered as quickly as possible, you can optionally use Search Console → URL Inspection → paste the exact new URL → **Request indexing** once. This is optional and does not guarantee ranking or immediate indexing.
 
-Then verify:
+### Example: Elora Fancy, Kondotty
 
-1. `www.quartzwebsolutions.com` redirects to `quartzwebsolutions.com`.
-2. `/sitemap.xml` returns XML and contains published connected websites.
-3. A published connected multi-page site has canonical URLs such as `/shop/about.html` and its page is listed in the sitemap.
-4. View Source on a connected page and confirm canonical/description/JSON-LD reflect the latest admin data.
-5. Test important pages with Google Rich Results / Schema Validator.
+Admin fields should contain real data such as:
+- Name: `Elora Fancy`
+- URL: `elora-fancy-kondotty`
+- Category: `Fancy Store`
+- City: `Kondotty`
+- District: `Malappuram`
+- Services/products: real products sold by the shop
+- Business description: unique, factual description
+- Primary keyword: e.g. `fancy store in Kondotty`
+- Secondary phrases: e.g. `Elora Fancy`, `Elora Fancy Kondotty`, `fancy store Kondotty`
 
-## Google Search Console — required once
+Quartz also derives natural variants such as `Elora Fancy Kondotty`, `Elora Fancy Fancy Store`, `Fancy Store in Kondotty`, `Fancy Kondotty` and `Kondotty Fancy` from the structured fields. The root title defaults to a business-first form such as `Elora Fancy | Fancy Store in Kondotty`, without adding Quartz to the title.
 
-1. Add **Domain property**: `quartzwebsolutions.com`.
-2. Verify with the Google-provided DNS TXT record in Cloudflare DNS.
-3. Submit `https://quartzwebsolutions.com/sitemap.xml` once.
-4. Request indexing for the homepage and key Quartz landing pages once after launch/domain migration.
+## Requirements for strong ranking
 
-From then on, new connected websites and HTML pages flow into the same sitemap automatically. Search Console submission is not repeated for each client site. Sitemap inclusion helps discovery but does not guarantee Google will index/rank a URL.
+Technical SEO and sitemap discovery can be automated; rankings cannot be guaranteed. Each business still needs real, unique content, accurate local information, useful images, and preferably genuine links/mentions. Do not create many near-identical city/keyword pages.
 
-## Keyword targeting
+## Image SEO
 
-`seo/keyword-targets.json` is for content planning. Google does not use a `meta keywords` tag. Target search phrases should appear naturally only on relevant useful pages. Do not create hundreds of near-identical location/keyword pages or hidden keyword blocks.
+- Quartz's own icons use descriptive files and correct favicon/PWA metadata.
+- Connected sites use their uploaded logo as the social/schema image when supplied. If no logo exists, Quartz uses the page's own image instead of showing a Quartz image.
+- Images that have no `alt` attribute receive a contextual fallback using the business name/category/location. Existing intentional alt text is preserved.
+- Use descriptive filenames when possible, e.g. `elora-fancy-kondotty-storefront.webp`, and upload compressed WebP/AVIF images for page speed.

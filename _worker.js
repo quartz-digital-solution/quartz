@@ -19,7 +19,8 @@ const STATIC_SITEMAP_PATHS = [
   '/services/local-seo-websites/',
   '/locations/kerala/',
   '/locations/malappuram/',
-  '/locations/calicut/'
+  '/locations/calicut/',
+  '/businesses/'
 ];
 
 const ALLOWED_BUSINESS_TYPES = new Set([
@@ -75,44 +76,46 @@ async function isAdmin(request, env) {
 
 async function ensureSchema(env) {
   if (!env.DB) throw new Error('D1 binding DB is not configured');
-  // D1 exec() treats newline-separated input as separate statements. Keep the
-  // multi-line CREATE TABLE as one prepared statement so it is not split at
-  // `CREATE TABLE ... (` and reported as an incomplete query.
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS connected_sites (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    slug TEXT NOT NULL UNIQUE,
-    name TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'draft',
-    logo_path TEXT DEFAULT '',
-    seo_title TEXT DEFAULT '',
-    seo_description TEXT DEFAULT '',
-    primary_keyword TEXT DEFAULT '',
-    keywords_json TEXT DEFAULT '[]',
-    category TEXT DEFAULT '',
-    business_type TEXT DEFAULT 'LocalBusiness',
-    city TEXT DEFAULT '',
-    district TEXT DEFAULT '',
-    state TEXT DEFAULT 'Kerala',
-    country_code TEXT DEFAULT 'IN',
-    address TEXT DEFAULT '',
-    postal_code TEXT DEFAULT '',
-    phone TEXT DEFAULT '',
-    whatsapp TEXT DEFAULT '',
-    email TEXT DEFAULT '',
-    opening_hours_json TEXT DEFAULT '[]',
-    maps_url TEXT DEFAULT '',
-    instagram_url TEXT DEFAULT '',
-    facebook_url TEXT DEFAULT '',
-    youtube_url TEXT DEFAULT '',
-    business_description TEXT DEFAULT '',
-    services_json TEXT DEFAULT '[]',
-    index_html TEXT NOT NULL DEFAULT '<!doctype html><html><head><title>New Website</title></head><body></body></html>',
-    deployed_at TEXT,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`).run();
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_connected_sites_slug ON connected_sites(slug)').run();
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_connected_sites_status ON connected_sites(status)').run();
+  await env.DB.exec(`
+    CREATE TABLE IF NOT EXISTS connected_sites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      logo_path TEXT DEFAULT '',
+      seo_title TEXT DEFAULT '',
+      seo_description TEXT DEFAULT '',
+      primary_keyword TEXT DEFAULT '',
+      keywords_json TEXT DEFAULT '[]',
+      category TEXT DEFAULT '',
+      business_type TEXT DEFAULT 'LocalBusiness',
+      city TEXT DEFAULT '',
+      district TEXT DEFAULT '',
+      state TEXT DEFAULT 'Kerala',
+      country_code TEXT DEFAULT 'IN',
+      address TEXT DEFAULT '',
+      postal_code TEXT DEFAULT '',
+      phone TEXT DEFAULT '',
+      whatsapp TEXT DEFAULT '',
+      email TEXT DEFAULT '',
+      opening_hours_json TEXT DEFAULT '[]',
+      maps_url TEXT DEFAULT '',
+      latitude REAL,
+      longitude REAL,
+      price_range TEXT DEFAULT '',
+      instagram_url TEXT DEFAULT '',
+      facebook_url TEXT DEFAULT '',
+      youtube_url TEXT DEFAULT '',
+      business_description TEXT DEFAULT '',
+      services_json TEXT DEFAULT '[]',
+      index_html TEXT NOT NULL DEFAULT '<!doctype html><html><head><title>New Website</title></head><body></body></html>',
+      deployed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_connected_sites_slug ON connected_sites(slug);
+    CREATE INDEX IF NOT EXISTS idx_connected_sites_status ON connected_sites(status);
+  `);
 
   // Safe automatic migration for databases created by earlier Quartz builds.
   const info = await env.DB.prepare('PRAGMA table_info(connected_sites)').all();
@@ -124,6 +127,9 @@ async function ensureSchema(env) {
     ['email', `TEXT DEFAULT ''`],
     ['opening_hours_json', `TEXT DEFAULT '[]'`],
     ['maps_url', `TEXT DEFAULT ''`],
+    ['latitude', 'REAL'],
+    ['longitude', 'REAL'],
+    ['price_range', `TEXT DEFAULT ''`],
     ['instagram_url', `TEXT DEFAULT ''`],
     ['facebook_url', `TEXT DEFAULT ''`],
     ['youtube_url', `TEXT DEFAULT ''`]
@@ -149,6 +155,11 @@ function cleanUrl(value) {
     const u = new URL(v.startsWith('http') ? v : `https://${v}`);
     return ['http:','https:'].includes(u.protocol) ? u.toString() : '';
   } catch { return ''; }
+}
+function validCoord(value, min, max) {
+  if (value === '' || value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= min && n <= max ? n : null;
 }
 function normalizeBusinessType(value) {
   const v = String(value || 'LocalBusiness').trim();
@@ -179,6 +190,9 @@ function sanitizeSiteInput(body) {
     email: String(body.email || '').trim().slice(0, 180),
     opening_hours_json: JSON.stringify(parseList(body.opening_hours).slice(0, 30)),
     maps_url: cleanUrl(body.maps_url).slice(0, 500),
+    latitude: validCoord(body.latitude, -90, 90),
+    longitude: validCoord(body.longitude, -180, 180),
+    price_range: String(body.price_range || '').trim().slice(0, 80),
     instagram_url: cleanUrl(body.instagram_url).slice(0, 500),
     facebook_url: cleanUrl(body.facebook_url).slice(0, 500),
     youtube_url: cleanUrl(body.youtube_url).slice(0, 500),
@@ -197,7 +211,7 @@ function rowToSite(row) {
   };
 }
 
-const SITE_COLUMNS = `slug,name,status,logo_path,seo_title,seo_description,primary_keyword,keywords_json,category,business_type,city,district,state,country_code,address,postal_code,phone,whatsapp,email,opening_hours_json,maps_url,instagram_url,facebook_url,youtube_url,business_description,services_json,index_html,deployed_at,created_at,updated_at`;
+const SITE_COLUMNS = `slug,name,status,logo_path,seo_title,seo_description,primary_keyword,keywords_json,category,business_type,city,district,state,country_code,address,postal_code,phone,whatsapp,email,opening_hours_json,maps_url,latitude,longitude,price_range,instagram_url,facebook_url,youtube_url,business_description,services_json,index_html,deployed_at,created_at,updated_at`;
 
 async function handleAdminApi(request, env, url) {
   const pathname = url.pathname;
@@ -238,7 +252,7 @@ async function handleAdminApi(request, env, url) {
     if (!s.name || !s.slug || !s.index_html) return bad('Name, URL slug and index.html are required');
     const now = new Date().toISOString();
     try {
-      const values = [s.slug,s.name,s.status,s.logo_path,s.seo_title,s.seo_description,s.primary_keyword,s.keywords_json,s.category,s.business_type,s.city,s.district,s.state,s.country_code,s.address,s.postal_code,s.phone,s.whatsapp,s.email,s.opening_hours_json,s.maps_url,s.instagram_url,s.facebook_url,s.youtube_url,s.business_description,s.services_json,s.index_html,s.status==='published'?now:null,now,now];
+      const values = [s.slug,s.name,s.status,s.logo_path,s.seo_title,s.seo_description,s.primary_keyword,s.keywords_json,s.category,s.business_type,s.city,s.district,s.state,s.country_code,s.address,s.postal_code,s.phone,s.whatsapp,s.email,s.opening_hours_json,s.maps_url,s.latitude,s.longitude,s.price_range,s.instagram_url,s.facebook_url,s.youtube_url,s.business_description,s.services_json,s.index_html,s.status==='published'?now:null,now,now];
       const marks = values.map(() => '?').join(',');
       const r = await env.DB.prepare(`INSERT INTO connected_sites (${SITE_COLUMNS}) VALUES (${marks}) RETURNING *`).bind(...values).first();
       return json({ ok: true, site: rowToSite(r) }, 201);
@@ -264,8 +278,8 @@ async function handleAdminApi(request, env, url) {
       const now = new Date().toISOString();
       const deployed = s.status === 'published' ? (existing.deployed_at || now) : existing.deployed_at;
       try {
-        const row = await env.DB.prepare(`UPDATE connected_sites SET slug=?,name=?,status=?,logo_path=?,seo_title=?,seo_description=?,primary_keyword=?,keywords_json=?,category=?,business_type=?,city=?,district=?,state=?,country_code=?,address=?,postal_code=?,phone=?,whatsapp=?,email=?,opening_hours_json=?,maps_url=?,instagram_url=?,facebook_url=?,youtube_url=?,business_description=?,services_json=?,index_html=?,deployed_at=?,updated_at=? WHERE id=? RETURNING *`)
-          .bind(s.slug,s.name,s.status,s.logo_path,s.seo_title,s.seo_description,s.primary_keyword,s.keywords_json,s.category,s.business_type,s.city,s.district,s.state,s.country_code,s.address,s.postal_code,s.phone,s.whatsapp,s.email,s.opening_hours_json,s.maps_url,s.instagram_url,s.facebook_url,s.youtube_url,s.business_description,s.services_json,s.index_html,deployed,now,id).first();
+        const row = await env.DB.prepare(`UPDATE connected_sites SET slug=?,name=?,status=?,logo_path=?,seo_title=?,seo_description=?,primary_keyword=?,keywords_json=?,category=?,business_type=?,city=?,district=?,state=?,country_code=?,address=?,postal_code=?,phone=?,whatsapp=?,email=?,opening_hours_json=?,maps_url=?,latitude=?,longitude=?,price_range=?,instagram_url=?,facebook_url=?,youtube_url=?,business_description=?,services_json=?,index_html=?,deployed_at=?,updated_at=? WHERE id=? RETURNING *`)
+          .bind(s.slug,s.name,s.status,s.logo_path,s.seo_title,s.seo_description,s.primary_keyword,s.keywords_json,s.category,s.business_type,s.city,s.district,s.state,s.country_code,s.address,s.postal_code,s.phone,s.whatsapp,s.email,s.opening_hours_json,s.maps_url,s.latitude,s.longitude,s.price_range,s.instagram_url,s.facebook_url,s.youtube_url,s.business_description,s.services_json,s.index_html,deployed,now,id).first();
         return json({ ok: true, site: rowToSite(row) });
       } catch (e) {
         if (String(e).toLowerCase().includes('unique')) return bad('That URL slug is already used', 409);
@@ -351,14 +365,24 @@ async function sitemap(env) {
   if (env.DB) {
     try {
       await ensureSchema(env);
-      const r = await env.DB.prepare(`SELECT id,slug,updated_at FROM connected_sites WHERE status='published' ORDER BY updated_at DESC`).all();
+      const r = await env.DB.prepare(`SELECT id,slug,name,logo_path,city,updated_at FROM connected_sites WHERE status='published' ORDER BY updated_at DESC`).all();
       sites = r.results || [];
     } catch {}
   }
-  const urls = STATIC_SITEMAP_PATHS.map(path => ({ loc:`${BASE_URL}${path}`, lastmod:'' }));
+  const urls = STATIC_SITEMAP_PATHS.map(path => ({ loc:`${BASE_URL}${path}`, lastmod:'', image:'' }));
 
+  const cityDates = new Map();
   for (const site of sites) {
-    urls.push({ loc:`${BASE_URL}/${site.slug}/`, lastmod:dateOnly(site.updated_at) });
+    const siteLogo = site.logo_path ? `${BASE_URL}/${site.slug}/${site.logo_path.replace(/^\/+/, '')}` : '';
+    urls.push({ loc:`${BASE_URL}/${site.slug}/`, lastmod:dateOnly(site.updated_at), image:siteLogo });
+    if (site.city) {
+      const citySlug = normalizeSlug(site.city);
+      if (citySlug) {
+        const prev = cityDates.get(citySlug);
+        const next = laterDate(prev, site.updated_at);
+        cityDates.set(citySlug, next);
+      }
+    }
     if (!env.SITES_BUCKET) continue;
     const seen = new Map();
     let cursor;
@@ -374,13 +398,16 @@ async function sitemap(env) {
       }
       cursor = list.truncated ? list.cursor : undefined;
     } while (cursor);
-    for (const [route, lm] of seen) urls.push({ loc:`${BASE_URL}/${site.slug}/${route}`, lastmod:dateOnly(lm) });
+    for (const [route, lm] of seen) urls.push({ loc:`${BASE_URL}/${site.slug}/${route}`, lastmod:dateOnly(lm), image:'' });
+  }
+  for (const [citySlug, lm] of cityDates) {
+    urls.push({ loc:`${BASE_URL}/businesses/city/${citySlug}/`, lastmod:dateOnly(lm), image:'' });
   }
 
   const unique = new Map();
   for (const u of urls) unique.set(u.loc, u);
-  const rows = [...unique.values()].map(u => `<url><loc>${escapeXml(u.loc)}</loc>${u.lastmod?`<lastmod>${escapeXml(u.lastmod)}</lastmod>`:''}</url>`);
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${rows.join('\n')}\n</urlset>`;
+  const rows = [...unique.values()].map(u => `<url><loc>${escapeXml(u.loc)}</loc>${u.lastmod?`<lastmod>${escapeXml(u.lastmod)}</lastmod>`:''}${u.image?`<image:image><image:loc>${escapeXml(u.image)}</image:loc></image:image>`:''}</url>`);
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${rows.join('\n')}\n</urlset>`;
   return new Response(xml, { headers:{ 'content-type':'application/xml; charset=utf-8', 'cache-control':'public, max-age=60, must-revalidate' } });
 }
 
@@ -427,6 +454,59 @@ function pathSegmentsFromCanonical(canonical, siteSlug) {
   if (parts[0] === siteSlug) parts.shift();
   return parts;
 }
+function generatedSearchPhrases(site) {
+  const manual = (()=>{try{return JSON.parse(site.keywords_json||'[]')}catch{return[]}})();
+  const services = (()=>{try{return JSON.parse(site.services_json||'[]')}catch{return[]}})();
+  const out = new Set();
+  const add = v => { const x=String(v||'').replace(/\s+/g,' ').trim(); if (x) out.add(x); };
+  const name=String(site.name||'').trim(), category=String(site.category||'').trim(), city=String(site.city||'').trim(), district=String(site.district||'').trim(), state=String(site.state||'').trim();
+  const simpleCategory = category.replace(/\b(store|shop|business|services?|company|centre|center)\b/gi,'').replace(/\s+/g,' ').trim();
+  add(site.primary_keyword); manual.forEach(add); add(name); add(category);
+  if (name && city) { add(`${name} ${city}`); add(`${name} in ${city}`); }
+  if (name && district) add(`${name} ${district}`);
+  if (name && category) add(`${name} ${category}`);
+  if (name && category && city) add(`${name} ${category} ${city}`);
+  if (category && city) { add(`${category} ${city}`); add(`${category} in ${city}`); }
+  if (simpleCategory && city) { add(`${simpleCategory} ${city}`); add(`${city} ${simpleCategory}`); }
+  if (category && district) add(`${category} ${district}`);
+  if (category && state) add(`${category} ${state}`);
+  services.slice(0,20).forEach(service => { add(service); if(city){add(`${service} ${city}`); add(`${service} in ${city}`);} if(name)add(`${name} ${service}`); });
+  return [...out].slice(0,80);
+}
+function extractMetaProperty(html, property) {
+  const p=String(property||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const a=String(html||'').match(new RegExp(`<meta\\s+[^>]*property=["']${p}["'][^>]*content=["']([^"']*)["'][^>]*>`,'i'));
+  const b=String(html||'').match(new RegExp(`<meta\\s+[^>]*content=["']([^"']*)["'][^>]*property=["']${p}["'][^>]*>`,'i'));
+  return (a||b||[])[1]||'';
+}
+function firstImageSrc(html) {
+  const m=String(html||'').match(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/i);
+  return m ? m[1].trim() : '';
+}
+function absolutePageAsset(src, canonical) {
+  const v=String(src||'').trim();
+  if(!v || /^(data:|blob:|javascript:)/i.test(v)) return '';
+  try { return new URL(v, canonical).toString(); } catch { return ''; }
+}
+function pageImage(site, htmlText, canonical) {
+  if (site.logo_path) return `${BASE_URL}/${site.slug}/${site.logo_path.replace(/^\/+/, '')}`;
+  return absolutePageAsset(extractMetaProperty(htmlText,'og:image') || firstImageSrc(htmlText), canonical);
+}
+function imageAltFromSrc(src, site) {
+  const base=humanizeSegment(String(src||'').split('/').pop().split('?')[0].replace(/\.[a-z0-9]{2,8}$/i,''));
+  const context=[site.name, site.category, site.city].filter(Boolean).join(' ');
+  if (!base || /^(img|image|photo|pic|hero|banner|cover|logo|icon)$/i.test(base)) return context || site.name || 'Business image';
+  return `${base} – ${context || site.name}`.slice(0,180);
+}
+function enhanceImageSeo(htmlText, site) {
+  return String(htmlText||'').replace(/<img\b([^>]*)>/gi, (whole, attrs) => {
+    if (/\balt\s*=\s*(["'])/i.test(attrs)) return whole;
+    const src=(attrs.match(/\bsrc\s*=\s*(["'])(.*?)\1/i)||[])[2]||'';
+    if (!src) return whole;
+    const alt=escapeAttr(imageAltFromSrc(src,site));
+    return `<img${attrs} alt="${alt}">`;
+  });
+}
 function pageSeo(site, htmlText, canonical) {
   const rootCanonical = `${BASE_URL}/${site.slug}/`;
   const isRoot = canonical === rootCanonical;
@@ -436,34 +516,38 @@ function pageSeo(site, htmlText, canonical) {
   const segments = pathSegmentsFromCanonical(canonical, site.slug);
   const pageLabel = h1 || (segments.length ? humanizeSegment(segments[segments.length-1]) : site.name);
   const genericTitles = new Set(['business website','new website','home','homepage']);
+  const businessDescriptor = site.category || 'Business';
+  const location = [site.city, site.district].filter(Boolean).join(', ');
 
   let title;
-  if (isRoot) title = site.seo_title || `${site.name}${site.city ? ` | ${site.category || 'Business'} in ${site.city}` : ''}`;
+  if (isRoot) title = site.seo_title || `${site.name}${businessDescriptor ? ` | ${businessDescriptor}` : ''}${site.city ? ` in ${site.city}` : ''}`;
   else if (originalTitle && !genericTitles.has(originalTitle.toLowerCase())) title = originalTitle.toLowerCase().includes(String(site.name).toLowerCase()) ? originalTitle : `${originalTitle} | ${site.name}`;
   else title = `${pageLabel || 'Business'} | ${site.name}${site.city ? ` ${site.city}` : ''}`;
 
   let description;
-  if (isRoot) description = site.seo_description || site.business_description || `${site.name}${site.city?` in ${site.city}`:''}${site.district?`, ${site.district}`:''}. View services, location and contact details.`;
-  else description = originalDesc || `${pageLabel || 'Information'} from ${site.name}${site.city?` in ${site.city}`:''}${site.district?`, ${site.district}`:''}. ${site.business_description || `View details, services and contact information.`}`;
-  description = stripTags(description).slice(0, 320);
-  return { title:title.slice(0,180), description, isRoot, pageLabel, rootCanonical, segments };
+  if (isRoot) description = site.seo_description || site.business_description || `${site.name} is a ${businessDescriptor}${location?` in ${location}`:''}. Explore products or services, location, opening hours and contact details.`;
+  else description = originalDesc || `${pageLabel || 'Information'} from ${site.name}${location?` in ${location}`:''}. ${site.business_description || `View business details, services and contact information.`}`;
+  description = stripTags(description).slice(0, 220);
+  return { title:title.slice(0,100), description, isRoot, pageLabel, rootCanonical, segments, searchPhrases:generatedSearchPhrases(site) };
 }
-function schemaGraph(site, seo, canonical, logo) {
-  const keywords = (()=>{try{return JSON.parse(site.keywords_json||'[]')}catch{return[]}})();
+
+function schemaGraph(site, seo, canonical, image, logo) {
   const services = (()=>{try{return JSON.parse(site.services_json||'[]')}catch{return[]}})();
   const openingHours = (()=>{try{return JSON.parse(site.opening_hours_json||'[]')}catch{return[]}})();
   const sameAs = [site.instagram_url,site.facebook_url,site.youtube_url].filter(Boolean);
   const hasAddress = site.address || site.city || site.district || site.postal_code;
+  const hasGeo = Number.isFinite(Number(site.latitude)) && Number.isFinite(Number(site.longitude));
   const business = {
     '@type': normalizeBusinessType(site.business_type),
     '@id': seo.rootCanonical + '#business',
     name: site.name,
     url: seo.rootCanonical,
-    image: logo,
-    logo,
+    image: image || undefined,
+    logo: logo || undefined,
     description: site.business_description || seo.description,
     telephone: site.phone || undefined,
     email: site.email || undefined,
+    priceRange: site.price_range || undefined,
     hasMap: site.maps_url || undefined,
     openingHours: openingHours.length ? openingHours : undefined,
     sameAs: sameAs.length ? sameAs : undefined,
@@ -475,137 +559,60 @@ function schemaGraph(site, seo, canonical, logo) {
       postalCode:site.postal_code||undefined,
       addressCountry:site.country_code||'IN'
     } : undefined,
+    geo: hasGeo ? { '@type':'GeoCoordinates', latitude:Number(site.latitude), longitude:Number(site.longitude) } : undefined,
     areaServed:[site.city,site.district,site.state].filter(Boolean),
-    knowsAbout:[...new Set([site.primary_keyword,...keywords,...services].filter(Boolean))].slice(0,40),
+    knowsAbout:seo.searchPhrases.slice(0,40),
     hasOfferCatalog: services.length ? {
       '@type':'OfferCatalog',
-      name:`${site.name} services`,
+      name:`${site.name} products and services`,
       itemListElement:services.slice(0,30).map(name=>({'@type':'Offer','itemOffered':{'@type':'Service','name':name}}))
     } : undefined
   };
   const breadcrumbs = [
-    {'@type':'ListItem',position:1,name:'Quartz Web Solutions',item:BASE_URL+'/'},
-    {'@type':'ListItem',position:2,name:site.name,item:seo.rootCanonical}
+    {'@type':'ListItem',position:1,name:site.name,item:seo.rootCanonical}
   ];
   let builtPath = `/${site.slug}/`;
   seo.segments.forEach((seg,i)=>{
     const isFile = i === seo.segments.length - 1 && /\.[a-z0-9]{1,8}$/i.test(seg);
     builtPath += `${encodeURIComponent(seg)}${isFile?'':'/'}`;
-    breadcrumbs.push({'@type':'ListItem',position:i+3,name:humanizeSegment(seg),item:BASE_URL+builtPath});
+    breadcrumbs.push({'@type':'ListItem',position:i+2,name:humanizeSegment(seg),item:BASE_URL+builtPath});
   });
-  return {
-    '@context':'https://schema.org',
-    '@graph':[
-      business,
-      {
-        '@type':'WebPage','@id':canonical+'#webpage',url:canonical,name:seo.title,description:seo.description,inLanguage:'en-IN',
-        about:{'@id':seo.rootCanonical+'#business'},
-        mainEntity:seo.isRoot?{'@id':seo.rootCanonical+'#business'}:undefined,
-        keywords:[site.primary_keyword,...keywords].filter(Boolean).join(', ') || undefined,
-        breadcrumb:{'@id':canonical+'#breadcrumb'}
-      },
-      {'@type':'BreadcrumbList','@id':canonical+'#breadcrumb',itemListElement:breadcrumbs}
-    ]
-  };
+  const graph=[
+    business,
+    {
+      '@type':'WebSite','@id':seo.rootCanonical+'#website',url:seo.rootCanonical,name:site.name,inLanguage:'en-IN',publisher:{'@id':seo.rootCanonical+'#business'}
+    },
+    {
+      '@type':'WebPage','@id':canonical+'#webpage',url:canonical,name:seo.title,description:seo.description,inLanguage:'en-IN',
+      isPartOf:{'@id':seo.rootCanonical+'#website'},
+      about:{'@id':seo.rootCanonical+'#business'},
+      mainEntity:seo.isRoot?{'@id':seo.rootCanonical+'#business'}:undefined,
+      keywords:seo.searchPhrases.join(', ') || undefined,
+      primaryImageOfPage:image?{'@id':canonical+'#primaryimage'}:undefined,
+      breadcrumb:{'@id':canonical+'#breadcrumb'}
+    },
+    {'@type':'BreadcrumbList','@id':canonical+'#breadcrumb',itemListElement:breadcrumbs}
+  ];
+  if(image) graph.push({'@type':'ImageObject','@id':canonical+'#primaryimage',url:image,contentUrl:image,caption:`${site.name}${site.city?` in ${site.city}`:''}`});
+  return {'@context':'https://schema.org','@graph':graph};
 }
-function siteLogoUrl(site) {
-  return site.logo_path
-    ? `${BASE_URL}/${site.slug}/${String(site.logo_path).replace(/^\/+/, '')}`
-    : `${BASE_URL}/asset/img/fav/icon-512.png`;
-}
-function siteLogo192Url(site) {
-  return site.logo_path === 'quartz-logo.webp'
-    ? `${BASE_URL}/${site.slug}/quartz-logo-192.webp`
-    : (site.logo_path ? siteLogoUrl(site) : `${BASE_URL}/asset/img/fav/icon-192.png`);
-}
-function logoMimeType(site) {
-  const t = guessType(site.logo_path || 'icon-512.png');
-  return String(t || '').split(';')[0] || 'image/png';
-}
-function connectedManifest(site) {
-  const logo = siteLogoUrl(site);
-  const icon192 = siteLogo192Url(site);
-  const scope = `/${site.slug}/`;
-  const manifest = {
-    id: scope,
-    name: site.name,
-    short_name: String(site.name || 'Website').slice(0, 32),
-    description: site.business_description || site.seo_description || `${site.name} website`,
-    start_url: scope,
-    scope,
-    display: 'standalone',
-    background_color: '#ffffff',
-    theme_color: '#ffffff',
-    lang: 'en-IN',
-    icons: [
-      { src: icon192, sizes: '192x192', type: logoMimeType(site), purpose: 'any' },
-      { src: logo, sizes: '512x512', type: logoMimeType(site), purpose: 'any maskable' }
-    ]
-  };
-  return new Response(JSON.stringify(manifest), {
-    headers: {
-      'content-type': 'application/manifest+json; charset=utf-8',
-      'cache-control': 'public, max-age=60, must-revalidate'
-    }
-  });
-}
-function connectedServiceWorker(site) {
-  const scope = `/${site.slug}/`;
-  const version = String(site.updated_at || site.deployed_at || '1').replace(/[^a-z0-9]/gi, '').slice(-28) || '1';
-  const prefix = `quartz-site-${site.id}-`;
-  const cacheName = `${prefix}${version}`;
-  const code = `
-const CACHE_NAME=${JSON.stringify(cacheName)};
-const CACHE_PREFIX=${JSON.stringify(prefix)};
-const SITE_SCOPE=${JSON.stringify(scope)};
-const CORE=[SITE_SCOPE,SITE_SCOPE+'manifest.webmanifest'];
-self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(CORE)).catch(()=>{}));self.skipWaiting();});
-self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith(CACHE_PREFIX)&&k!==CACHE_NAME).map(k=>caches.delete(k)))));self.clients.claim();});
-self.addEventListener('fetch',event=>{
-  const req=event.request;
-  if(req.method!=='GET')return;
-  const url=new URL(req.url);
-  if(url.origin!==self.location.origin||!url.pathname.startsWith(SITE_SCOPE)||url.pathname.endsWith('/sw.js'))return;
-  event.respondWith((async()=>{
-    try{
-      const fresh=await fetch(req);
-      if(fresh&&fresh.ok){const cache=await caches.open(CACHE_NAME);cache.put(req,fresh.clone()).catch(()=>{});}
-      return fresh;
-    }catch(err){
-      const cached=await caches.match(req);
-      if(cached)return cached;
-      if(req.mode==='navigate')return (await caches.match(SITE_SCOPE))||Response.error();
-      return Response.error();
-    }
-  })());
-});`;
-  return new Response(code, {
-    headers: {
-      'content-type': 'application/javascript; charset=utf-8',
-      'cache-control': 'no-store, must-revalidate',
-      'service-worker-allowed': scope
-    }
-  });
-}
+
 function injectSeo(site, htmlText, canonical) {
-  const seo = pageSeo(site, htmlText, canonical);
-  const logo = siteLogoUrl(site);
-  const manifestUrl = `${BASE_URL}/${site.slug}/manifest.webmanifest`;
-  const swUrl = `/${site.slug}/sw.js`;
-  const schemaText = JSON.stringify(schemaGraph(site,seo,canonical,logo)).replace(/<\//g,'<\\/');
   let out = htmlText || '<!doctype html><html><head></head><body></body></html>';
   out = rewriteRootRelative(out, site.slug);
+  out = enhanceImageSeo(out, site);
+  const seo = pageSeo(site, out, canonical);
+  const logo = site.logo_path ? `${BASE_URL}/${site.slug}/${site.logo_path.replace(/^\/+/, '')}` : '';
+  const image = pageImage(site, out, canonical);
+  const schemaText = JSON.stringify(schemaGraph(site,seo,canonical,image,logo)).replace(/<\//g,'<\\/');
   if (!/<html[\s>]/i.test(out)) out = `<!doctype html><html lang="en-IN"><head></head><body>${out}</body></html>`;
   else if (!/<html[^>]*\slang=/i.test(out)) out = out.replace(/<html([^>]*)>/i,'<html$1 lang="en-IN">');
   if (!/<head[\s>]/i.test(out)) out = out.replace(/<html[^>]*>/i, m => `${m}<head></head>`);
 
-  out = out.replace(/<script[^>]+data-quartz-pwa=["']true["'][^>]*>[\s\S]*?<\/script>\s*/gi,'');
-
   out = out.replace(/<head([^>]*)>([\s\S]*?)<\/head>/i, (whole, attrs, head) => {
+    // Meta keywords are intentionally removed. Google does not use them.
     head = head.replace(/<meta\s+[^>]*name=["']keywords["'][^>]*>\s*/gi,'');
     head = head.replace(/<script[^>]+data-quartz-seo=["']true["'][^>]*>[\s\S]*?<\/script>\s*/gi,'');
-    head = head.replace(/<link\b(?=[^>]*\brel=["'][^"']*(?:icon|manifest|apple-touch-icon)[^"']*["'])[^>]*>\s*/gi,'');
-    head = head.replace(/<meta\s+name=["'](?:theme-color|mobile-web-app-capable|apple-mobile-web-app-capable|apple-mobile-web-app-title)["'][^>]*>\s*/gi,'');
     head = replaceOrInsert(head, /<meta\s+charset=["']?[^>]+>/i, '<meta charset="utf-8">');
     head = replaceOrInsert(head, /<meta\s+name=["']viewport["'][^>]*>/i, '<meta name="viewport" content="width=device-width,initial-scale=1">');
     head = replaceOrInsert(head, /<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(seo.title)}</title>`);
@@ -617,27 +624,23 @@ function injectSeo(site, htmlText, canonical) {
     head = replaceOrInsert(head, /<meta\s+property=["']og:title["'][^>]*>/i, `<meta property="og:title" content="${escapeAttr(seo.title)}">`);
     head = replaceOrInsert(head, /<meta\s+property=["']og:description["'][^>]*>/i, `<meta property="og:description" content="${escapeAttr(seo.description)}">`);
     head = replaceOrInsert(head, /<meta\s+property=["']og:url["'][^>]*>/i, `<meta property="og:url" content="${canonical}">`);
-    head = replaceOrInsert(head, /<meta\s+property=["']og:image["'][^>]*>/i, `<meta property="og:image" content="${escapeAttr(logo)}">`);
-    head = replaceOrInsert(head, /<meta\s+name=["']twitter:card["'][^>]*>/i, '<meta name="twitter:card" content="summary_large_image">');
+    if(image){
+      head = replaceOrInsert(head, /<meta\s+property=["']og:image["'][^>]*>/i, `<meta property="og:image" content="${escapeAttr(image)}">`);
+      head = replaceOrInsert(head, /<meta\s+property=["']og:image:alt["'][^>]*>/i, `<meta property="og:image:alt" content="${escapeAttr(`${site.name}${site.city?` in ${site.city}`:''}`)}">`);
+    }
+    head = replaceOrInsert(head, /<meta\s+name=["']twitter:card["'][^>]*>/i, image?'<meta name="twitter:card" content="summary_large_image">':'<meta name="twitter:card" content="summary">');
     head = replaceOrInsert(head, /<meta\s+name=["']twitter:title["'][^>]*>/i, `<meta name="twitter:title" content="${escapeAttr(seo.title)}">`);
     head = replaceOrInsert(head, /<meta\s+name=["']twitter:description["'][^>]*>/i, `<meta name="twitter:description" content="${escapeAttr(seo.description)}">`);
-    head = replaceOrInsert(head, /<meta\s+name=["']twitter:image["'][^>]*>/i, `<meta name="twitter:image" content="${escapeAttr(logo)}">`);
-    head += `\n<link rel="icon" href="${escapeAttr(logo)}">`;
-    head += `\n<link rel="apple-touch-icon" href="${escapeAttr(logo)}">`;
-    head += `\n<link rel="manifest" href="${escapeAttr(manifestUrl)}">`;
-    head += `\n<meta name="theme-color" content="#ffffff">`;
-    head += `\n<meta name="mobile-web-app-capable" content="yes">`;
-    head += `\n<meta name="apple-mobile-web-app-capable" content="yes">`;
-    head += `\n<meta name="apple-mobile-web-app-title" content="${escapeAttr(String(site.name || '').slice(0,32))}">`;
+    if(image){
+      head = replaceOrInsert(head, /<meta\s+name=["']twitter:image["'][^>]*>/i, `<meta name="twitter:image" content="${escapeAttr(image)}">`);
+      head = replaceOrInsert(head, /<meta\s+name=["']twitter:image:alt["'][^>]*>/i, `<meta name="twitter:image:alt" content="${escapeAttr(`${site.name}${site.city?` in ${site.city}`:''}`)}">`);
+    }
     head += `\n<script type="application/ld+json" data-quartz-seo="true">${schemaText}</script>`;
     return `<head${attrs}>${head}</head>`;
   });
-
-  const register = `<script data-quartz-pwa="true">if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register(${JSON.stringify(swUrl)},{scope:${JSON.stringify(`/${site.slug}/`)}}).catch(()=>{}));}</script>`;
-  if (/<\/body>/i.test(out)) out = out.replace(/<\/body>/i, `${register}</body>`);
-  else out += register;
   return out;
 }
+
 function escapeHtml(s) { return String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 function escapeAttr(s) { return String(s||'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c])); }
 
@@ -654,10 +657,6 @@ async function serveConnected(request, env, url) {
   const site = await env.DB.prepare(`SELECT * FROM connected_sites WHERE slug=? AND status='published'`).bind(slug).first();
   if (!site) return null;
   const rest = parts.slice(1).join('/');
-
-  if (rest === 'manifest.webmanifest') return connectedManifest(site);
-  if (rest === 'sw.js') return connectedServiceWorker(site);
-  if (rest === 'favicon.ico') return Response.redirect(siteLogoUrl(site), 302);
 
   if (!rest || /^index\.html?$/i.test(rest)) {
     const canonical = `${BASE_URL}/${site.slug}/`;
@@ -690,6 +689,34 @@ async function serveConnected(request, env, url) {
   return new Response('Not found',{status:404,headers:{'x-robots-tag':'noindex'}});
 }
 
+async function businessDirectory(env, url) {
+  if (url.pathname === '/businesses') return Response.redirect(`${BASE_URL}/businesses/`,301);
+  if (!env.DB) return new Response('Business directory is not configured',{status:503,headers:{'x-robots-tag':'noindex'}});
+  await ensureSchema(env);
+  const cityMatch=url.pathname.match(/^\/businesses\/city\/([^/]+)\/?$/i);
+  const citySlug=cityMatch ? normalizeSlug(cityMatch[1]) : '';
+  const result=await env.DB.prepare(`SELECT slug,name,category,city,district,state,business_description,logo_path,updated_at FROM connected_sites WHERE status='published' ORDER BY name COLLATE NOCASE`).all();
+  let sites=result.results||[];
+  let cityLabel='';
+  if(citySlug){
+    sites=sites.filter(x=>normalizeSlug(x.city)===citySlug);
+    cityLabel=sites[0]?.city || humanizeSegment(citySlug);
+    if(!sites.length) return new Response('Not found',{status:404,headers:{'x-robots-tag':'noindex'}});
+  }
+  const canonical=citySlug?`${BASE_URL}/businesses/city/${citySlug}/`:`${BASE_URL}/businesses/`;
+  const title=citySlug?`Businesses in ${cityLabel} | Local Business Websites`:`Local Business Websites Directory | Quartz Web Solutions`;
+  const description=citySlug?`Explore published local business websites in ${cityLabel}, including shops and service businesses with direct contact and location details.`:`Explore published local business websites hosted by Quartz Web Solutions. Browse shops and service businesses by name and location.`;
+  const cards=sites.map(site=>{
+    const logo=site.logo_path?`${BASE_URL}/${site.slug}/${site.logo_path.replace(/^\/+/, '')}`:'';
+    const loc=[site.city,site.district].filter(Boolean).join(', ');
+    return `<article class="directory-card">${logo?`<img src="${escapeAttr(logo)}" alt="${escapeAttr(site.name)} logo" loading="lazy" decoding="async">`:''}<div><h2><a href="/${encodeURIComponent(site.slug)}/">${escapeHtml(site.name)}</a></h2><p class="directory-meta">${escapeHtml([site.category,loc].filter(Boolean).join(' · '))}</p><p>${escapeHtml((site.business_description||`Visit ${site.name} for business details, products or services and contact information.`).slice(0,240))}</p><a class="directory-link" href="/${encodeURIComponent(site.slug)}/">Open ${escapeHtml(site.name)} →</a></div></article>`;
+  }).join('');
+  const itemList=sites.map((site,i)=>({'@type':'ListItem',position:i+1,url:`${BASE_URL}/${site.slug}/`,name:site.name}));
+  const schema=JSON.stringify({'@context':'https://schema.org','@graph':[{'@type':'CollectionPage','url':canonical,'name':title,'description':description,'inLanguage':'en-IN'},{'@type':'ItemList','itemListElement':itemList}]}).replace(/<\//g,'<\\/');
+  const html=`<!doctype html><html lang="en-IN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="index,follow,max-image-preview:large"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeAttr(description)}"><link rel="canonical" href="${canonical}"><link rel="icon" type="image/png" sizes="32x32" href="/asset/img/fav/favicon-32.png"><meta name="theme-color" content="#050505"><script type="application/ld+json">${schema}</script><style>body{margin:0;background:#050505;color:#f5f5f5;font-family:Arial,sans-serif}.wrap{width:min(1080px,calc(100% - 32px));margin:auto;padding:56px 0}.back{color:#ff3048;text-decoration:none}.head{margin:30px 0}.head h1{font-size:clamp(32px,7vw,64px);line-height:1;margin:0 0 14px}.head p{color:#aaa;max-width:760px;line-height:1.7}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}.directory-card{display:flex;gap:16px;border:1px solid #252525;border-radius:18px;padding:20px;background:#0b0b0c}.directory-card img{width:68px;height:68px;object-fit:contain;border-radius:14px;background:#000}.directory-card h2{margin:0 0 7px;font-size:20px}.directory-card h2 a,.directory-link{color:#fff;text-decoration:none}.directory-link{color:#ff3048;font-weight:700}.directory-card p{color:#aaa;line-height:1.55}.directory-meta{font-size:13px;color:#ddd!important}.cities{margin:26px 0;display:flex;flex-wrap:wrap;gap:8px}.cities a{color:#ddd;border:1px solid #333;padding:8px 12px;border-radius:999px;text-decoration:none}</style></head><body><main class="wrap"><a class="back" href="/">← Quartz Web Solutions</a><header class="head"><h1>${escapeHtml(citySlug?`Businesses in ${cityLabel}`:'Local business websites')}</h1><p>${escapeHtml(description)}</p></header>${!citySlug?`<nav class="cities">${[...new Set((result.results||[]).map(x=>x.city).filter(Boolean))].sort().map(c=>`<a href="/businesses/city/${normalizeSlug(c)}/">${escapeHtml(c)}</a>`).join('')}</nav>`:''}<section class="grid">${cards||'<p>No published businesses yet.</p>'}</section></main></body></html>`;
+  return new Response(html,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=60, must-revalidate'}});
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -717,6 +744,7 @@ export default {
       }
 
       if (isMainHost && url.pathname === '/sitemap.xml') return await sitemap(env);
+      if (isMainHost && (url.pathname === '/businesses' || url.pathname === '/businesses/' || /^\/businesses\/city\/[^/]+\/?$/i.test(url.pathname))) return await businessDirectory(env,url);
       if (request.method !== 'GET' && request.method !== 'HEAD') return env.ASSETS.fetch(request);
 
       const staticResponse = await env.ASSETS.fetch(request);

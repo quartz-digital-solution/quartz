@@ -1,117 +1,109 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="en-IN">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow,noarchive">
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="noindex,nofollow,noarchive" name="robots"/>
 <title>Quartz Admin</title>
-<link rel="icon" href="/asset/img/fav/favicon.ico">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/admin/admin.css">
-</head>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="/admin/admin.css" rel="stylesheet"/>
+<link href="/asset/img/fav/favicon-32.png" rel="icon" sizes="32x32" type="image/png"/><link href="/asset/img/fav/favicon-16.png" rel="icon" sizes="16x16" type="image/png"/><link href="/asset/img/fav/favicon.ico" rel="shortcut icon"/><link href="/asset/img/fav/icon-180.png" rel="apple-touch-icon" sizes="180x180"/><link href="/site.webmanifest" rel="manifest"/></head>
 <body>
-<div id="loginView" class="login-view">
-  <form id="loginForm" class="login-card">
-    <img src="/asset/img/logo/quartz.png" alt="Quartz Web Solutions">
-    <span>PRIVATE ADMIN</span>
-    <h1>Quartz Sites</h1>
-    <p>Enter the admin login ID.</p>
-    <input id="loginId" autocomplete="username" placeholder="Login ID" required>
-    <button>Login</button>
-    <div id="loginError" class="error"></div>
-  </form>
+<div class="login-view" id="loginView">
+<form class="login-card" id="loginForm">
+<img alt="Quartz Web Solutions" src="/asset/img/logo/quartz.png"/>
+<span>PRIVATE ADMIN</span>
+<h1>Quartz Sites</h1>
+<p>Enter the admin login ID.</p>
+<input autocomplete="username" id="loginId" placeholder="Login ID" required=""/>
+<button>Login</button>
+<div class="error" id="loginError"></div>
+</form>
 </div>
-
-<div id="appView" class="app hidden">
-  <aside class="sidebar">
-    <a class="brand" href="/"><img src="/asset/img/logo/quartz.png" alt="Quartz"></a>
-    <nav class="main-nav" aria-label="Admin sections">
-      <button class="nav-btn active" id="sitesNavBtn" type="button">Websites</button>
-      <button class="nav-btn" id="newSiteBtn" type="button">Add Website</button>
-    </nav>
-  </aside>
-
-  <main class="main">
-    <section id="sitesView">
-      <div class="topbar">
-        <div><span class="kicker">QUARTZ PLATFORM</span><h1>Connected websites</h1><p>Manage every website published under quartzwebsolutions.com.</p></div>
-      </div>
-      <div class="stats">
-        <div><strong id="totalCount">0</strong><span>Total websites</span></div>
-        <div><strong id="liveCount">0</strong><span>Published</span></div>
-      </div>
-      <div class="toolbar"><input id="searchInput" type="search" placeholder="Search name, URL, keyword or location"><button id="refreshBtn" type="button">Refresh</button></div>
-      <div id="siteList" class="site-list"></div>
-      <div id="emptyState" class="empty hidden">No connected websites yet.</div>
-    </section>
-
-    <section id="editorView" class="hidden">
-      <div class="editor-head">
-        <button id="backBtn" class="ghost" type="button">← Back</button>
-        <div class="editor-actions">
-          <a id="openLiveBtn" class="ghost hidden" target="_blank" rel="noopener">Open live site ↗</a>
-          <button id="deleteBtn" class="danger hidden" type="button">Delete website</button>
-          <button id="publishBtn" class="primary" type="button">Deploy Website</button>
-        </div>
-      </div>
-      <form id="siteForm" class="editor-grid" onsubmit="return false">
-        <div class="form-main">
-          <div class="panel">
-            <span class="kicker">WEBSITE</span><h2>Website details</h2>
-            <div class="fields two"><label>Name<input id="siteName" required placeholder="Royal Furniture"></label><label>URL slug<div class="slug-wrap"><span>quartzwebsolutions.com/</span><input id="siteSlug" required placeholder="royal-furniture-kondotty"></div></label></div>
-            <div class="fields two"><label>Category<input id="category" placeholder="Furniture Store"></label><label>Schema business type<select id="businessType"><option>LocalBusiness</option><option>Store</option><option>Restaurant</option><option>Bakery</option><option>FurnitureStore</option><option>ClothingStore</option><option>ElectronicsStore</option><option>MobilePhoneStore</option><option>ConvenienceStore</option><option>GroceryStore</option><option>HardwareStore</option><option>HomeGoodsStore</option><option>JewelryStore</option><option>ShoeStore</option><option>AutoRepair</option><option>BeautySalon</option><option>HairSalon</option><option>TravelAgency</option><option>ProfessionalService</option><option>RealEstateAgent</option><option>Pharmacy</option><option>Florist</option><option>ComputerStore</option><option>CafeOrCoffeeShop</option><option>FastFoodRestaurant</option><option>Hotel</option></select></label></div>
-            <label>Products / services<input id="services" placeholder="Sofas, Beds, Tables"></label>
-            <div class="fields three"><label>City<input id="city" placeholder="Kondotty"></label><label>District<input id="district" placeholder="Malappuram"></label><label>State<input id="state" value="Kerala"></label></div>
-            <div class="fields two"><label>Address<textarea id="address" rows="2" placeholder="Full business address"></textarea></label><label>Postal code<input id="postalCode" placeholder="673638"></label></div>
-            <div class="fields three"><label>Phone<input id="phone" placeholder="+91..."></label><label>WhatsApp<input id="whatsapp" placeholder="+91..."></label><label>Email<input id="email" type="email" placeholder="shop@example.com"></label></div>
-            <label>Opening hours<textarea id="openingHours" rows="3" placeholder="Mo-Sa 09:00-19:00&#10;Su 10:00-14:00"></textarea></label>
-            <label>Google Maps URL<input id="mapsUrl" type="url" placeholder="https://maps.google.com/..."></label>
-            <div class="fields three"><label>Instagram URL<input id="instagramUrl" type="url" placeholder="https://instagram.com/..."></label><label>Facebook URL<input id="facebookUrl" type="url" placeholder="https://facebook.com/..."></label><label>YouTube URL<input id="youtubeUrl" type="url" placeholder="https://youtube.com/..."></label></div>
-            <label>Business description<textarea id="businessDescription" rows="4" placeholder="Describe the actual business, products and services..."></textarea></label>
-          </div>
-
-          <div class="panel">
-            <div class="panel-title"><div><span class="kicker">SEO</span><h2>Search optimisation</h2></div><div class="score"><strong id="seoScore">0</strong><span>/100</span></div></div>
-            <label>Primary keyword<input id="primaryKeyword" placeholder="furniture shop in Kondotty"></label>
-            <label>Secondary keywords<textarea id="keywords" rows="6" placeholder="best furniture shop Kondotty&#10;sofa shop Kondotty&#10;furniture store Malappuram"></textarea></label>
-            <div class="fields two"><label>SEO title<input id="seoTitle" maxlength="180" placeholder="Auto-generated if empty"></label><label>Meta description<textarea id="seoDescription" rows="3" maxlength="400" placeholder="Auto-generated if empty"></textarea></label></div>
-            <div id="seoChecks" class="seo-checks"></div>
-            <p class="note">Quartz automatically updates canonical URLs, titles, descriptions, LocalBusiness schema, Open Graph, sitemap entries, favicon, PWA manifest and installability whenever this website is deployed or edited.</p>
-          </div>
-
-          <div class="panel">
-            <span class="kicker">HTML</span><h2>index.html</h2>
-            <div class="upload-row"><label class="file-btn">Load index.html<input id="indexFile" type="file" accept=".html,.htm,text/html"></label><label class="file-btn">Load website folder<input id="folderFiles" type="file" webkitdirectory directory multiple></label><span id="folderStatus"></span></div>
-            <textarea id="indexHtml" class="code" spellcheck="false" rows="25" required placeholder="<!doctype html>..."></textarea>
-            <p class="note">For a complete static site, choose its folder. Quartz stores the root index.html in D1 and syncs the other CSS, JS, image, font and HTML files to R2.</p>
-          </div>
-        </div>
-
-        <aside class="form-side">
-          <div class="panel sticky">
-            <span class="kicker">STATUS</span>
-            <div class="status-line"><span>Current</span><strong id="currentStatus">New site</strong></div>
-            <div class="status-line"><span>Deployed</span><strong id="deployedAt">—</strong></div>
-            <div class="status-line"><span>URL</span><a id="previewUrl" target="_blank" rel="noopener">—</a></div>
-            <hr>
-            <label>Logo / app icon<input id="logoFile" type="file" accept="image/*"></label>
-            <div id="logoPreview" class="logo-preview">No logo</div>
-            <p class="note">The uploaded image is automatically center-cropped and saved as a 512×512 square. Quartz uses it as the website favicon, social image and installable-app icon.</p>
-          </div>
-        </aside>
-      </form>
-      <div id="saveToast" class="toast hidden"></div>
-    </section>
-  </main>
+<div class="app hidden" id="appView">
+<aside class="sidebar">
+<a class="brand" href="/"><img alt="Quartz" src="/asset/img/logo/quartz.png"/></a>
+<nav>
+<button class="nav-btn active" data-view="sites">Connected Websites</button>
+<button class="nav-btn" id="newSiteBtn">Add Website</button>
+</nav>
+<button class="logout" id="logoutBtn">Logout</button>
+</aside>
+<main class="main">
+<section id="sitesView">
+<div class="topbar">
+<div><span class="kicker">QUARTZ PLATFORM</span><h1>Connected websites</h1><p>Publish, edit and manage websites hosted under quartzwebsolutions.com.</p></div>
+<button class="primary" id="topNewSiteBtn">+ Add Website</button>
 </div>
-
-<div id="busyOverlay" class="busy-overlay hidden" aria-live="polite" aria-busy="true">
-  <div class="busy-card">
-    <div class="dot-loader" aria-hidden="true"><span></span><span></span><span></span></div>
-    <strong id="busyText">Working…</strong>
-  </div>
+<div class="stats">
+<div><strong id="totalCount">0</strong><span>Total</span></div>
+<div><strong id="liveCount">0</strong><span>Published</span></div>
+<div><strong id="draftCount">0</strong><span>Drafts</span></div>
+</div>
+<div class="toolbar"><input id="searchInput" placeholder="Search name, URL or keyword" type="search"/><button id="refreshBtn">Refresh</button></div>
+<div class="site-list" id="siteList"></div>
+<div class="empty hidden" id="emptyState">No connected websites yet.</div>
+</section>
+<section class="hidden" id="editorView">
+<div class="editor-head">
+<button class="ghost" id="backBtn">← Back</button>
+<div class="editor-actions"><a class="ghost hidden" id="openLiveBtn" rel="noopener" target="_blank">Open live site ↗</a><button class="danger hidden" id="deleteBtn">Delete</button><button class="ghost" id="saveDraftBtn">Save Draft</button><button class="primary" id="publishBtn">Deploy Website</button></div>
+</div>
+<form class="editor-grid" id="siteForm">
+<div class="form-main">
+<div class="panel">
+<span class="kicker">WEBSITE</span><h2>Website details</h2>
+<div class="fields two"><label>Name<input id="siteName" placeholder="Royal Furniture" required=""/></label><label>URL slug<div class="slug-wrap"><span>quartzwebsolutions.com/</span><input id="siteSlug" placeholder="royal-furniture-kondotty" required=""/></div></label></div>
+<div class="fields two"><label>Category<input id="category" placeholder="Furniture Store"/></label><label>Schema business type<select id="businessType"><option>LocalBusiness</option><option>Store</option><option>Restaurant</option><option>Bakery</option><option>FurnitureStore</option><option>ClothingStore</option><option>ElectronicsStore</option><option>MobilePhoneStore</option><option>ConvenienceStore</option><option>GroceryStore</option><option>HardwareStore</option><option>HomeGoodsStore</option><option>JewelryStore</option><option>ShoeStore</option><option>AutoRepair</option><option>BeautySalon</option><option>HairSalon</option><option>TravelAgency</option><option>ProfessionalService</option><option>RealEstateAgent</option><option>Pharmacy</option><option>Florist</option><option>ComputerStore</option><option>CafeOrCoffeeShop</option><option>FastFoodRestaurant</option><option>Hotel</option></select></label></div>
+<label>Products / services<input id="services" placeholder="Sofas, Beds, Tables"/></label>
+<div class="fields three"><label>City<input id="city" placeholder="Kondotty"/></label><label>District<input id="district" placeholder="Malappuram"/></label><label>State<input id="state" value="Kerala"/></label></div>
+<div class="fields two"><label>Address<textarea id="address" placeholder="Full business address" rows="2"></textarea></label><label>Postal code<input id="postalCode" placeholder="673638"/></label></div>
+<div class="fields three"><label>Phone<input id="phone" placeholder="+91..."/></label><label>WhatsApp<input id="whatsapp" placeholder="+91..."/></label><label>Email<input id="email" placeholder="shop@example.com" type="email"/></label></div>
+<label>Opening hours<textarea id="openingHours" placeholder="Mo-Sa 09:00-19:00
+Su 10:00-14:00" rows="3"></textarea></label>
+<div class="fields two"><label>Google Maps URL<input id="mapsUrl" placeholder="https://maps.google.com/..." type="url"/></label><label>Price range<input id="priceRange" placeholder="₹₹ or ₹500-₹5000"/></label></div>
+<div class="fields two"><label>Latitude<input id="latitude" inputmode="decimal" placeholder="11.1390"/></label><label>Longitude<input id="longitude" inputmode="decimal" placeholder="75.9320"/></label></div>
+<div class="fields three"><label>Instagram URL<input id="instagramUrl" placeholder="https://instagram.com/..." type="url"/></label><label>Facebook URL<input id="facebookUrl" placeholder="https://facebook.com/..." type="url"/></label><label>YouTube URL<input id="youtubeUrl" placeholder="https://youtube.com/..." type="url"/></label></div>
+<label>Business description<textarea id="businessDescription" placeholder="Describe the actual business, products and services..." rows="4"></textarea></label>
+</div>
+<div class="panel">
+<div class="panel-title"><div><span class="kicker">SEO</span><h2>Search optimisation</h2></div><div class="score"><strong id="seoScore">0</strong><span>/100</span></div></div>
+<label>Primary keyword<input id="primaryKeyword" placeholder="furniture shop in Kondotty"/></label>
+<label>Secondary keywords<textarea id="keywords" placeholder="best furniture shop Kondotty
+sofa shop Kondotty
+furniture store Malappuram" rows="6"></textarea></label><div class="auto-search-box" id="autoSearchPhrases">Automatic search phrases will appear here from the business name, category, city and services.</div>
+<div class="fields two"><label>SEO title<input id="seoTitle" maxlength="180" placeholder="Auto-generated if empty"/></label><label>Meta description<textarea id="seoDescription" maxlength="400" placeholder="Auto-generated if empty" rows="3"></textarea></label></div>
+<div class="seo-checks" id="seoChecks"></div>
+<p class="note">Every business field is part of the SEO engine. When you save or deploy changes, Quartz regenerates titles, descriptions, business schema, image metadata, local search phrases, canonicals and sitemap timestamps automatically. Uploaded multi-page HTML files get page-level SEO from their own title/H1/content. Google ignores meta-keywords, so Quartz never injects that tag.</p>
+</div>
+<div class="panel">
+<span class="kicker">HTML</span><h2>index.html</h2>
+<div class="upload-row"><label class="file-btn">Load index.html<input accept=".html,.htm,text/html" id="indexFile" type="file"/></label><label class="file-btn">Load website folder<input directory="" id="folderFiles" multiple="" type="file" webkitdirectory=""/></label><span id="folderStatus"></span></div>
+<textarea class="code" id="indexHtml" placeholder="&lt;!doctype html&gt;..." required="" rows="25" spellcheck="false"></textarea>
+<p class="note">For a complete static site, choose its folder. Quartz reads the root index.html into this editor and uploads the other CSS, JS, image and font files as site assets.</p>
+</div>
+</div>
+<aside class="form-side">
+<div class="panel sticky">
+<span class="kicker">STATUS</span>
+<div class="status-line"><span>Current</span><strong id="currentStatus">New site</strong></div>
+<div class="status-line"><span>Deployed</span><strong id="deployedAt">—</strong></div>
+<div class="status-line"><span>URL</span><a id="previewUrl" rel="noopener" target="_blank">—</a></div>
+<hr/>
+<label>Logo / social image<input accept="image/*" id="logoFile" type="file"/></label>
+<div class="logo-preview" id="logoPreview">No logo</div>
+<hr/>
+<span class="kicker">PREVIEW</span>
+<iframe id="htmlPreview" sandbox="allow-scripts allow-forms allow-popups" title="Website preview"></iframe>
+</div>
+</aside>
+</form>
+<div class="toast hidden" id="saveToast"></div>
+</section>
+</main>
 </div>
 <script src="/admin/admin.js"></script>
 </body>
