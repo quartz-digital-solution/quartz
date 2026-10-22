@@ -54,7 +54,7 @@
 <li><a href="#about">About</a></li>
 <li><a href="#contact">Contact</a></li>
 </ul>
-<button class="quote-btn" onclick="window.location.href='#contact'" type="button">Start a Project</button>
+<button class="quote-btn" id="startProjectBtn" type="button">Start a Project</button>
 <button aria-expanded="false" aria-label="Open menu" class="menu-toggle" type="button">☰</button>
 </nav>
 </div>
@@ -123,7 +123,7 @@
 <a href="/services/website-for-shops/"><strong>Website for Shops</strong><span>Mobile-first shop websites with products, WhatsApp, location and enquiry journeys.</span></a>
 <a href="/services/business-websites/"><strong>Business Website Design</strong><span>Fast, modern websites for local services, companies and customer-facing brands.</span></a>
 <a href="/services/local-seo-websites/"><strong>SEO-ready Local Websites</strong><span>Technical SEO, structured data, sitemaps and locally relevant content foundations.</span></a>
-<a href="/businesses/"><strong>Local Business Websites</strong><span>Browse published shop and local business websites connected to the Quartz platform.</span></a></div>
+</div>
 </div>
 </section>
 <section class="projects section" id="projects">
@@ -191,7 +191,7 @@
 <a class="contact-inline-link" href="https://wa.me/918086035507" rel="noopener" target="_blank">WhatsApp business enquiries: +91 80860 35507</a>
 </div>
 </div>
-<form class="contact-form" onsubmit="sendToWhatsApp(event)">
+<form class="contact-form" id="enquiryForm">
 <label for="name">Name</label>
 <input autocomplete="name" id="name" placeholder="Your name" required="" type="text"/>
 <label for="email">Email</label>
@@ -200,7 +200,7 @@
 <input id="project" placeholder="Website, web app, e-commerce..." type="text"/>
 <label for="message">Project brief</label>
 <textarea id="message" placeholder="Tell us what you want to build"></textarea>
-<button type="submit">Send Project Enquiry</button>
+<input class="honeypot-field" type="text" name="company_url" id="company_url" tabindex="-1" autocomplete="off" aria-hidden="true"><div id="enquiryVerification" class="enquiry-verification" aria-live="polite"></div><button type="submit" id="enquirySubmit"><span>Send Project Enquiry</span><span class="enquiry-loader" aria-hidden="true"><i></i><i></i><i></i></span></button><p id="enquiryStatus" class="enquiry-status" role="status" aria-live="polite"></p>
 </form>
 </div>
 </section>
@@ -218,7 +218,7 @@
 <a href="#projects">Work</a>
 <a href="#contact">Contact</a>
 <a href="./sabith-salah-kp/">Founder: Sabith Salah K P</a>
-<a href="/businesses/">Local business websites</a></div>
+</div>
 <div class="footer-column">
 <span>Connect</span>
 <a href="https://www.instagram.com/quartz_web_solution/" rel="noopener" target="_blank">Instagram</a>

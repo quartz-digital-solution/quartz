@@ -1,0 +1,43 @@
+/asset/img/*
+  Cache-Control: public, max-age=2592000, must-revalidate
+
+/asset/*.css
+  Cache-Control: public, max-age=3600, must-revalidate
+
+/asset/*.js
+  Cache-Control: public, max-age=3600, must-revalidate
+
+/sitemap.xml
+  Content-Type: application/xml; charset=UTF-8
+  Cache-Control: public, max-age=60, must-revalidate
+
+/robots.txt
+  Content-Type: text/plain; charset=UTF-8
+
+/llms.txt
+  Content-Type: text/plain; charset=UTF-8
+
+/admin/*
+  X-Robots-Tag: noindex, nofollow, noarchive
+  Cache-Control: no-store
+  X-Content-Type-Options: nosniff
+  Content-Security-Policy: frame-ancestors 'none'
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+/*
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Content-Type-Options: nosniff
+
+/site.webmanifest
+  Content-Type: application/manifest+json
+  Cache-Control: public, max-age=3600
+
+/sw.js
+  Content-Type: application/javascript; charset=utf-8
+  Cache-Control: no-cache
+
+/share/*
+  X-Robots-Tag: noindex, nofollow, noarchive
+  Cache-Control: private, no-store, max-age=0
+  Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'
