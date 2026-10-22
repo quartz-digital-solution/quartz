@@ -9,3 +9,15 @@
 @media(max-width:720px){.access-item{grid-template-columns:1fr}.access-item .access-buttons{justify-content:start}.access-grid{grid-template-columns:1fr}.access-form .id-only-check{padding-top:0}.choice-actions{flex-direction:column}}
 
 .compact-export{padding:16px 20px}.compact-export p{font-size:11px}.private-backups{margin:12px 4px;color:#a2a9b6;font-size:12px}.private-backups summary{cursor:pointer;display:inline-block;font-weight:700}.private-backups>p{font-size:11px;max-width:600px}.private-backups .export-actions{justify-content:flex-start;margin-top:9px}
+
+/* Passwords are not sent with the account list; reveal is an explicit admin action. */
+.access-record-account{min-width:0}
+.access-record-account>strong{overflow-wrap:anywhere}
+.access-secret-row{display:flex;align-items:center;gap:8px;min-height:32px;margin-top:4px}
+.access-secret{font-size:12px;color:#e8eaf0;overflow-wrap:anywhere;word-break:break-word;min-width:0}
+.access-password-muted{font-size:11px;color:#999fac}
+.access-eye-btn{flex:0 0 32px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #3b4350;border-radius:8px;background:#1b2029;color:#e9edf3;transition:border-color .15s,background .15s}
+.access-eye-btn:hover{border-color:#ff3550;background:#2b222d}
+.access-eye-btn:focus-visible{outline:2px solid #ff536b;outline-offset:2px}
+.access-eye-svg{display:block}
+@media(max-width:720px){.access-item{gap:9px}.access-eye-btn{width:36px;height:36px}}

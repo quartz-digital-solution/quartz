@@ -148,9 +148,15 @@ if (enquiryForm) enquiryForm.addEventListener('submit', async event => {
             method: 'POST', cache: 'no-store', credentials: 'same-origin',
             headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
         });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(result.error || 'Could not submit your enquiry.');
-        status.textContent = 'Enquiry received successfully. We will contact you soon.';
+        const result = await response.json().catch(() => null);
+        if (!response.ok || !result || result.ok !== true) {
+            let detail = result?.error || 'Could not submit your enquiry.';
+            if (response.status === 404 || response.status === 405) detail = 'Enquiry service is unavailable. The site owner must check the Cloudflare Pages Worker deployment.';
+            else if (response.status >= 500 && !result?.error) detail = 'Enquiry service error. The site owner must check the Cloudflare D1 binding and Worker logs.';
+            else if (!result && response.ok) detail = 'The enquiry server did not confirm receipt. Please try again later.';
+            throw new Error(detail);
+        }
+        status.textContent = 'Enquiry received successfully' + (Number.isSafeInteger(result.enquiry_id) && result.enquiry_id > 0 ? ` (reference #${result.enquiry_id})` : '') + '. We will contact you soon.';
         status.classList.add('success');
         enquiryForm.reset();
         enquiryTurnstileToken='';

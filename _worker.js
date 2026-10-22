@@ -38,6 +38,21 @@ const select = async (db, sql, ...params) => (await db.prepare(sql).bind(...para
 const first = async (db, sql, ...params) => db.prepare(sql).bind(...params).first();
 const exec = async (db, sql, ...params) => db.prepare(sql).bind(...params).run();
 
+// Keep the public enquiry pipeline independent of client/payment migration.
+// An unrelated old CRM table must never prevent a prospective client from contacting us.
+let enquiriesReady = false; let enquiriesInFlight = null;
+async function ensureEnquiries(env) {
+  if(enquiriesReady)return;
+  if(enquiriesInFlight)return enquiriesInFlight;
+  enquiriesInFlight=(async()=>{
+    if(!env.DB)throw Error('Cloudflare D1 binding DB is missing.');
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS enquiries (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, project TEXT NOT NULL DEFAULT '', message TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','read')), created_at TEXT NOT NULL, read_at TEXT, ip_hash TEXT NOT NULL DEFAULT '')`).run();
+    await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_enquiries_status ON enquiries(status, created_at DESC)`).run();
+    await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_enquiries_ip ON enquiries(ip_hash, created_at)`).run();
+    enquiriesReady=true;
+  })();
+  try {await enquiriesInFlight;}finally{enquiriesInFlight=null;}
+}
 let schemaReady = false; let schemaInFlight = null;
 async function schema(env) {
   if(schemaReady) return;
@@ -154,6 +169,16 @@ async function getAccess(db,env,id){
  const rows=await select(db,'SELECT id,encrypted_data,created_at,updated_at FROM client_access WHERE client_id=? ORDER BY id ASC',id);
  return Promise.all(rows.map(async r=>({id:r.id,...await decryptCredential(env,r.encrypted_data),created_at:r.created_at,updated_at:r.updated_at})));
 }
+// Admin lists disclose account metadata, not decrypted passwords. A single password is
+// decrypted only in response to an authenticated eye-button request.
+async function getAccessSummary(db,env,id){
+ const entries=await getAccess(db,env,id);
+ return entries.map(({password,...entry})=>({...entry,has_password:!entry.id_only&&Boolean(password)}));
+}
+async function getAccessEntry(db,env,id,entryId){
+ const row=await first(db,'SELECT encrypted_data FROM client_access WHERE client_id=? AND id=?',id,entryId);
+ return row ? await decryptCredential(env,row.encrypted_data) : null;
+}
 const getDirectory = async db => (await getClients(db)).sort((a,b)=>a.id-b.id).map(directoryClient);
 const getPayments = (db,id) => select(db,'SELECT id,client_id,amount_paise,note,paid_at,manual_date,created_at,voided_at FROM client_payments WHERE client_id=? ORDER BY paid_at DESC,id DESC',id);
 function clientInput(b) {
@@ -231,6 +256,17 @@ async function verifyTurnstile(token,req,env,hostname) {
 async function publicApi(req,env,url) {
   if(url.pathname==='/api/public/config' && req.method==='GET')
     return reply({ok:true,turnstile_site_key:env.TURNSTILE_SITE_KEY&&env.TURNSTILE_SECRET_KEY?env.TURNSTILE_SITE_KEY:''},200,{'Cache-Control':'no-store'});
+  // Public, read-only deployment readiness check. No credentials or private rows returned.
+  if(url.pathname==='/api/public/health' && req.method==='GET') {
+    if(!env.DB) return reply({ok:false,revision:'enquiries-v5',error:'Database binding DB is missing'},503);
+    try {
+      await ensureEnquiries(env);
+      await first(env.DB,'SELECT COUNT(*) AS n FROM enquiries LIMIT 1');
+      const turnstileReady=Boolean(env.TURNSTILE_SITE_KEY)===Boolean(env.TURNSTILE_SECRET_KEY);
+      if(!turnstileReady)return reply({ok:false,revision:'enquiries-v5',error:'Turnstile keys are incomplete'},503);
+      return reply({ok:true,revision:'enquiries-v5',enquiries_ready:true,turnstile_enabled:Boolean(env.TURNSTILE_SECRET_KEY)},200);
+    } catch {return reply({ok:false,revision:'enquiries-v5',error:'Database unavailable or enquiries table could not initialize'},503);}
+  }
   if(url.pathname==='/api/enquiries' && req.method==='POST') {
     const origin=req.headers.get('Origin');
     if(origin!==BASE) return error('Origin not allowed',403);
@@ -239,15 +275,16 @@ async function publicApi(req,env,url) {
     if(len>16000) return error('Enquiry is too large',413);
     const b=await jsonBody(req);
     if(b.company_url) return reply({ok:true}); // honeypot
-    if(!(await verifyTurnstile(b.turnstile_token,req,env,url.hostname)))return error('Verification failed. Please retry.',403);
+    if(Boolean(env.TURNSTILE_SITE_KEY)!==Boolean(env.TURNSTILE_SECRET_KEY))return error('Enquiry verification is not configured correctly. Contact the site administrator.',503);
+    if(!(await verifyTurnstile(b.turnstile_token,req,env,url.hostname)))return error('Security verification failed. Please refresh and retry.',403);
     const name=norm(b.name,120),email=norm(b.email,180),project=norm(b.project,180),message=norm(b.message,3500);
     if(name.length<2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !(project||message)) return error('Please enter a name, valid email and project details.');
-    await schema(env);
+    await ensureEnquiries(env);
     const ip=await ipHash(req,env);
     const hit=await first(env.DB,'SELECT COUNT(*) AS n FROM enquiries WHERE ip_hash=? AND created_at>=?',ip,new Date(Date.now()-15*60000).toISOString());
     if(hit.n>=4) return error('Too many enquiries. Please try again later.',429);
-    await exec(env.DB,'INSERT INTO enquiries (name,email,project,message,status,created_at,ip_hash) VALUES (?,?,?,?,?,?,?)',name,email,project,message,'new',now(),ip);
-    return reply({ok:true,message:'Your enquiry has been received.'},201,{'Cache-Control':'no-store'});
+    const inserted=await exec(env.DB,'INSERT INTO enquiries (name,email,project,message,status,created_at,ip_hash) VALUES (?,?,?,?,?,?,?)',name,email,project,message,'new',now(),ip);
+    return reply({ok:true,enquiry_id:inserted.meta?.last_row_id??null,message:'Your enquiry has been received.'},201,{'Cache-Control':'no-store'});
   }
   const m=url.pathname.match(/^\/api\/public\/shared\/([a-zA-Z0-9_-]{32,100})$/);
   if(m && req.method==='GET') {
@@ -335,12 +372,20 @@ async function adminApi(req,env,url) {
   const am=path.match(/^\/api\/admin\/clients\/(\d+)\/access$/);
   if(am){
     const id=numId(am[1]);if(!(await getClient(db,id)))return error('Client not found',404);
-    if(req.method==='GET')return reply({ok:true,access:await getAccess(db,env,id)});
+    if(req.method==='GET')return reply({ok:true,access:await getAccessSummary(db,env,id)},200,{'Cache-Control':'no-store'});
     if(req.method==='POST'){
       const entry=credentialData(await jsonBody(req));const encrypted=await encryptCredential(env,entry);const t=now();
       await exec(db,'INSERT INTO client_access(client_id,encrypted_data,created_at,updated_at) VALUES(?,?,?,?)',id,encrypted,t,t);
-      return reply({ok:true,access:await getAccess(db,env,id)},201);
+      return reply({ok:true,access:await getAccessSummary(db,env,id)},201,{'Cache-Control':'no-store'});
     }
+  }
+  const areveal=path.match(/^\/api\/admin\/clients\/(\d+)\/access\/(\d+)\/reveal$/);
+  if(areveal && req.method==='GET'){
+    const id=numId(areveal[1]),entryId=numId(areveal[2]);
+    if(!(await getClient(db,id)))return error('Client not found',404);
+    const entry=await getAccessEntry(db,env,id,entryId);
+    if(!entry)return error('Access record not found',404);
+    return reply({ok:true,password:entry.id_only?'':entry.password},200,{'Cache-Control':'no-store'});
   }
   const aitem=path.match(/^\/api\/admin\/clients\/(\d+)\/access\/(\d+)$/);
   if(aitem){
@@ -350,7 +395,12 @@ async function adminApi(req,env,url) {
       return r.meta.changes?reply({ok:true}):error('Access record not found',404);
     }
     if(req.method==='PUT'){
-      const entry=credentialData(await jsonBody(req));const encrypted=await encryptCredential(env,entry);
+      const previous=await getAccessEntry(db,env,id,entryId);
+      if(!previous)return error('Access record not found',404);
+      const submitted=await jsonBody(req);
+      // An empty password during edit means KEEP the saved one; selecting ID-only removes it.
+      if(!submitted.id_only && !String(submitted.password??''))submitted.password=previous.password;
+      const entry=credentialData(submitted),encrypted=await encryptCredential(env,entry);
       const r=await exec(db,'UPDATE client_access SET encrypted_data=?,updated_at=? WHERE client_id=? AND id=?',encrypted,now(),id,entryId);
       return r.meta.changes?reply({ok:true}):error('Access record not found',404);
     }

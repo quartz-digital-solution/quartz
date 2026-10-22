@@ -1,7 +1,7 @@
 'use strict';
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
-const state={view:'overview',client:null,clients:[],enquiries:[],enquiryTab:'new',busy:false,access:[],editingAccessId:null};
+const state={view:'overview',client:null,clients:[],enquiries:[],enquiryTab:'new',busy:false,access:[],editingAccessId:null,revealedAccess:new Map()};
 const fmtMoney=p=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR'}).format((Number(p)||0)/100);
 const fmtDate=t=>t?new Intl.DateTimeFormat('en-IN',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Kolkata'}).format(new Date(t)):'—';
 const escapeHTML=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -54,15 +54,22 @@ async function pdfOne(id){
 }
 async function pdfAll(){try{toast('Preparing compact numbered client directory...');const d=await api('/api/admin/clients/full');await QuartzPdf.download(d.clients,'quartz-all-clients-directory.pdf',{mode:'directory'})}catch(e){toast(e.message,true)}}
 async function loadAccess(id){
+ state.revealedAccess.clear();
  try{const d=await api(`/api/admin/clients/${id}/access`);state.access=d.access||[];renderAccess()}
  catch(e){state.access=[];renderAccess();toast(e.message,true)}
 }
+const eyeOpenSvg='<svg class="access-eye-svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+const eyeClosedSvg='<svg class="access-eye-svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A11.1 11.1 0 0 1 12 5c6.4 0 10 7 10 7a14.5 14.5 0 0 1-3.2 4.2M6.5 6.5C3.5 8.7 2 12 2 12s3.6 7 10 7c1.9 0 3.5-.6 4.8-1.4"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
 function renderAccess(){
  const all=state.access||[];
- $('#accessList').innerHTML=all.length?all.map(a=>`<div class="access-item"><div><strong>${escapeHTML(a.label)}</strong><small>${a.id_only?'ID only':'ID + Password'}</small></div><div><strong>${escapeHTML(a.login_id)}</strong><small>${a.id_only?'No password saved':'Password saved securely'}</small></div><div class="access-buttons"><button class="tiny" type="button" data-access-edit="${a.id}">Edit</button><button class="tiny" type="button" data-access-remove="${a.id}">Remove</button></div></div>`).join(''):'<div class="access-empty">No accounts added yet. Add admin, staff or other website login details below.</div>';
+ $('#accessList').innerHTML=all.length?all.map(a=>{
+   const revealed=state.revealedAccess.has(a.id);
+   const display=a.id_only?'':`<span class="access-secret" aria-live="polite">${revealed?escapeHTML(state.revealedAccess.get(a.id)):'••••••••'}</span><button class="access-eye-btn" type="button" data-access-reveal="${a.id}" title="${revealed?'Hide password':'Show password'}" aria-label="${revealed?'Hide password':'Show password'}" aria-pressed="${revealed?'true':'false'}">${revealed?eyeClosedSvg:eyeOpenSvg}</button>`;
+   return `<div class="access-item"><div class="access-record-role"><strong>${escapeHTML(a.label)}</strong><small>${a.id_only?'ID only':'ID + Password'}</small></div><div class="access-record-account"><strong>${escapeHTML(a.login_id)}</strong>${a.id_only?'':`<div class="access-secret-row">${display}</div>`}</div><div class="access-buttons"><button class="tiny" type="button" data-access-edit="${a.id}">Edit</button><button class="tiny" type="button" data-access-remove="${a.id}">Remove</button></div></div>`;
+ }).join(''):'<div class="access-empty">No accounts added yet. Add admin, staff or other website login details below.</div>';
 }
-function clearAccessForm(){$('#accessForm').reset();state.editingAccessId=null;$('#saveAccessBtn').textContent='+ Add access';$('#cancelAccessEdit').classList.add('hidden');$('#accessPassword').closest('label').classList.remove('hidden')}
-function editAccess(id){const a=state.access.find(x=>x.id===id);if(!a)return;state.editingAccessId=id;$('#accessRole').value=a.label;$('#accessLogin').value=a.login_id;$('#accessIdOnly').checked=a.id_only;$('#accessPassword').value=a.password||'';$('#accessPassword').closest('label').classList.toggle('hidden',a.id_only);$('#saveAccessBtn').textContent='Save access';$('#cancelAccessEdit').classList.remove('hidden');$('#accessRole').focus()}
+function clearAccessForm(){$('#accessForm').reset();state.editingAccessId=null;$('#saveAccessBtn').textContent='+ Add access';$('#cancelAccessEdit').classList.add('hidden');$('#accessPassword').closest('label').classList.remove('hidden');$('#accessPassword').placeholder='Password'}
+function editAccess(id){const a=state.access.find(x=>x.id===id);if(!a)return;state.editingAccessId=id;$('#accessRole').value=a.label;$('#accessLogin').value=a.login_id;$('#accessIdOnly').checked=a.id_only;$('#accessPassword').value='';$('#accessPassword').placeholder='Leave blank to keep current password';$('#accessPassword').closest('label').classList.toggle('hidden',a.id_only);$('#saveAccessBtn').textContent='Save access';$('#cancelAccessEdit').classList.remove('hidden');$('#accessRole').focus()}
 function beginNewClient(prefill={}){$('#newClientForm').reset();$('#newContact').value=prefill.contact||'';$('#newEmail').value=prefill.email||'';$('#newDescription').value=prefill.description||'';$('#newBusiness').value=prefill.business||'';$('#clientModal').classList.remove('hidden');$('#newBusiness').focus()}
 function closeNewClient(){$('#clientModal').classList.add('hidden')}
 $('#loginForm').addEventListener('submit',async e=>{e.preventDefault();$('#loginError').textContent='';const btn=$('#loginBtn');btn.disabled=true;try{await api('/api/admin/login',payload({loginId:fval('loginId'),password:fval('loginPassword')}));$('#loginPassword').value='';$('#loginPage').classList.add('hidden');$('#app').classList.remove('hidden');setView('overview');loadSummaryBadge()}catch(e){$('#loginError').textContent=e.message}finally{btn.disabled=false}});
@@ -92,14 +99,26 @@ $('#cancelAccessEdit').addEventListener('click',clearAccessForm);
 $('#accessForm').addEventListener('submit',async e=>{
  e.preventDefault();if(!state.client)return;const btn=$('#saveAccessBtn');btn.disabled=true;
  try{const id=state.client.id,item={label:fval('accessRole'),login_id:fval('accessLogin'),password:fval('accessPassword'),id_only:$('#accessIdOnly').checked};
-  if(!item.id_only&&!item.password){toast('Enter a password or select ID only.',true);return}
+  if(!item.id_only&&!item.password&&!state.editingAccessId){toast('Enter a password or select ID only.',true);return}
   if(state.editingAccessId)await api(`/api/admin/clients/${id}/access/${state.editingAccessId}`,{method:'PUT',body:JSON.stringify(item)});
   else await api(`/api/admin/clients/${id}/access`,payload(item));
   clearAccessForm();await loadAccess(id);toast('Client website access saved securely.')
  }catch(ex){toast(ex.message,true)}finally{btn.disabled=false}
 });
 $('#accessList').addEventListener('click',async e=>{const b=e.target.closest('button');if(!b||!state.client)return;
- if(b.dataset.accessEdit)editAccess(+b.dataset.accessEdit);
+ if(b.dataset.accessReveal){
+  const entryId=+b.dataset.accessReveal;
+  if(state.revealedAccess.has(entryId)){state.revealedAccess.delete(entryId);renderAccess();return}
+  b.disabled=true;
+  try{
+    const clientId=state.client.id;
+    const result=await api(`/api/admin/clients/${clientId}/access/${entryId}/reveal`);
+    if(state.client?.id===clientId && state.access.some(a=>a.id===entryId)){
+      state.revealedAccess.set(entryId,result.password||'');renderAccess();
+    }
+  }catch(ex){toast(ex.message,true);b.disabled=false}
+ }
+ else if(b.dataset.accessEdit)editAccess(+b.dataset.accessEdit);
  else if(b.dataset.accessRemove){if(!confirm('Remove this saved client website login?'))return;try{await api(`/api/admin/clients/${state.client.id}/access/${b.dataset.accessRemove}`,{method:'DELETE'});clearAccessForm();await loadAccess(state.client.id);toast('Access record removed.')}catch(ex){toast(ex.message,true)}}
 });
 (async()=>{try{await api('/api/admin/me');$('#loginPage').classList.add('hidden');$('#app').classList.remove('hidden');setView('overview');loadSummaryBadge()}catch{$('#loginPage').classList.remove('hidden')}})();
