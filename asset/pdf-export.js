@@ -115,8 +115,8 @@ function create(assets,records,mode){
   const top=y;
   image('ImSignature',L+3,top+3,sigW,sigH);
   addLink(L+3,top+3,sigW,sigH,FOUNDER_URL);
-  image('ImSeal',R-sealW-5,top-4,sealW,sealH);
-  addLink(R-sealW-5,top-4,sealW,sealH,QUARTZ_URL);
+  image('ImSeal',R-sealW-5,top+11,sealW,sealH);
+  addLink(R-sealW-5,top+11,sealW,sealH,QUARTZ_URL);
   y=top+Math.max(sigH,sealH)+8;
   text('Sabith Salah K P',L+3,y,9,2,[.13,.14,.16]);
   addLink(L+3,y-10,94,13,FOUNDER_URL);y+=13;
