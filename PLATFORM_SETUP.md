@@ -47,7 +47,7 @@ After updating settings/bindings, redeploy. The Worker creates the CRM schema au
 - Each client and the entire client directory can create read-only links at `https://quartzwebsolutions.com/share/<random-token>`. Recipients can see the live record and download a PDF, but the public link does **not** offer or authorize edits.
 - Generating a **new** link revokes the prior link for the same client / all-directory share. **Revoke link** disables existing links.
 - The token is generated securely and only its SHA-256 hash is saved in D1; copy the displayed link when created, because the original token cannot be recovered from the hash. Whoever holds a link can see the included private details; share intentionally and revoke if necessary.
-- The typed name and illustrative seal are **not** legal electronic signatures, a cryptographic signature, or an image of your real handwritten signature. To incorporate your actual signature/stamp later, supply real image assets.
+- PDF documents use the supplied Quartz seal and signature artwork. Save these assets securely and do not publish documents containing personal information without approval.
 - PDFs use the bundled lightweight Helvetica text writer. It supports common Latin text; for client names/notes with Malayalam or other non-Latin characters, the **read-only web page** preserves Unicode, but unsupported glyphs in the downloaded PDF may appear as `?`. CSV and JSON retain full Unicode.
 
 ## 5. Remove the legacy system safely

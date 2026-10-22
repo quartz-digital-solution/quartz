@@ -3,49 +3,121 @@
 'use strict';
 const W=595.28,H=841.89,L=43,R=552;
 const E=new TextEncoder();
+const QUARTZ_URL='https://quartzwebsolutions.com/';
+const FOUNDER_URL='https://quartzwebsolutions.com/sabith-salah-kp/';
 const INR=v=>'Rs. '+(Number(v||0)/100).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const date=v=>{if(!v)return '-';try{return new Date(v).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Kolkata'})}catch{return String(v)}};
 function latin(text){return String(text??'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').replace(/\u20B9/g,'Rs.').replace(/[^\x20-\x7E\xA0-\xFF\n]/g,'?')}
 function quote(t){return latin(t).replace(/[\\()]/g,'\\$&').replace(/\n/g,' ')}
 const fmt=n=>Number(n).toFixed(2);
-function create(images,records){
- let pages=[],ops=[],y=120;
+function create(assets,records,mode){
+ let pages=[],ops=[],annots=[],y=120;
  function raw(s){ops.push(s)}
  function fill(rgb){raw(rgb.map(n=>fmt(n)).join(' ')+' rg\n')}
  function stroke(rgb){raw(rgb.map(n=>fmt(n)).join(' ')+' RG\n')}
  function rect(x,top,w,h,c){fill(c);raw(`${fmt(x)} ${fmt(H-top-h)} ${fmt(w)} ${fmt(h)} re f\n`)}
  function line(x1,t1,x2,t2,c=[.86,.88,.9]){stroke(c);raw(`0.6 w ${fmt(x1)} ${fmt(H-t1)} m ${fmt(x2)} ${fmt(H-t2)} l S\n`)}
  function text(s,x,top,size=10,font=1,color=[.15,.17,.21]){fill(color);raw(`BT /F${font} ${fmt(size)} Tf 1 0 0 1 ${fmt(x)} ${fmt(H-top)} Tm (${quote(s)}) Tj ET\n`)}
- function header(){rect(0,0,W,92,[.055,.065,.08]);rect(0,92,W,3,[.99,.14,.23]);raw(`q 40 0 0 40 ${fmt(L)} ${fmt(H-67)} cm /Im1 Do Q\n`);text('QUARTZ WEB SOLUTIONS',95,37,16,2,[1,1,1]);text('CLIENT RECORDS  /  CONFIDENTIAL DOCUMENT',95,54,8,1,[.76,.78,.81]);y=118}
- function page(){if(ops.length)pages.push(ops.join(''));ops=[];header()}
+ function image(name,x,top,w,h){raw(`q ${fmt(w)} 0 0 ${fmt(h)} ${fmt(x)} ${fmt(H-top-h)} cm /${name} Do Q\n`)}
+ function addLink(x,top,w,h,url){annots.push({x1:x,y1:H-(top+h),x2:x+w,y2:H-top,url})}
+ function pushPage(){pages.push({content:ops.join(''),annots:[...annots]});ops=[];annots=[]}
+ function header(){
+  rect(0,0,W,92,[.055,.065,.08]);rect(0,92,W,3,[.99,.14,.23]);
+  image('ImLogo',L,26,42,42);addLink(L,26,42,42,QUARTZ_URL);
+  text('QUARTZ WEB SOLUTIONS',95,37,16,2,[1,1,1]);
+  addLink(95,22,215,22,QUARTZ_URL);
+  text('CLIENT RECORDS  /  CONFIDENTIAL DOCUMENT',95,54,8,1,[.76,.78,.81]);
+  y=118;
+ }
+ function page(){if(ops.length)pushPage();header()}
  function fit(n=24){if(y+n>749)page()}
  function heading(t){fit(41);text(t.toUpperCase(),L,y+3,10,2,[.88,.12,.2]);y+=17;line(L,y,R,y);y+=16}
  function wrap(t,max=110){let lines=[];for(const para of latin(t||'-').split('\n')){let s='';for(const w of para.split(/\s+/)){if((s+' '+w).trim().length>max&&s){lines.push(s);s=w}else s=(s+' '+w).trim()}lines.push(s||' ')}return lines}
- function field(k,v){const lines=wrap(String(v||'-'),91);fit(21+lines.length*13);text(k.toUpperCase(),L,y,8,2,[.48,.52,.57]);y+=15;for(const l of lines){fit(15);text(l,L,y,10,1,[.13,.16,.2]);y+=14}y+=6}
+ function field(k,v,href){const lines=wrap(String(v||'-'),91);fit(21+lines.length*13);text(k.toUpperCase(),L,y,8,2,[.48,.52,.57]);y+=15;for(const l of lines){fit(15);text(l,L,y,10,1,href?[.07,.34,.62]:[.13,.16,.2]);if(href)addLink(L,y-12,Math.min(R-L,Math.max(45,l.length*5.7)),15,href);y+=14}y+=6}
  function payment(p){const lines=wrap((p.voided_at?'[VOIDED - excluded from total] ':'')+(p.note||'Payment entry'),72);fit(38+lines.length*11);text(date(p.paid_at),L,y,8,1,[.46,.49,.54]);text((p.amount_paise>=0?'+':'')+INR(p.amount_paise),380,y,10,2,p.amount_paise<0?[.8,.12,.2]:[.10,.46,.31]);y+=15;for(const l of lines){text(l,L+8,y,9,1);y+=12}text(p.manual_date?'Date entered by admin':'Date based on added time',L+8,y,8,3,[.52,.55,.59]);y+=20;line(L,y,R,y);y+=13}
- function sign(){fit(135);y+=10;line(L,y,R,y,[.74,.77,.81]);y+=24;text('VERIFIED RECORD',L,y,9,2,[.78,.13,.21]);y+=25;text('Sabith Salah K P',L,y,18,3,[.13,.14,.16]);y+=16;text('Founder | Quartz Web Solutions',L,y,9,1,[.42,.44,.48]);y+=15;text('Typed authorization; not a cryptographic digital signature.',L,y,7,1,[.57,.59,.62]);
-  // Circular illustrative Quartz document seal, distinct from any physical company stamp.
-  const cx=480,cy=H-(y-46);stroke([.84,.15,.23]);raw(`1.3 w ${fmt(cx+37)} ${fmt(cy)} m ${fmt(cx+37)} ${fmt(cy+20.43)} ${fmt(cx+20.43)} ${fmt(cy+37)} ${fmt(cx)} ${fmt(cy+37)} c ${fmt(cx-20.43)} ${fmt(cy+37)} ${fmt(cx-37)} ${fmt(cy+20.43)} ${fmt(cx-37)} ${fmt(cy)} c ${fmt(cx-37)} ${fmt(cy-20.43)} ${fmt(cx-20.43)} ${fmt(cy-37)} ${fmt(cx)} ${fmt(cy-37)} c ${fmt(cx+20.43)} ${fmt(cy-37)} ${fmt(cx+37)} ${fmt(cy-20.43)} ${fmt(cx+37)} ${fmt(cy)} c S\n`);
-  text('QUARTZ',453,y-52,10,2,[.84,.15,.23]);text('RECORD',454,y-39,8,2,[.84,.15,.23]);text('VERIFIED',454,y-27,8,2,[.84,.15,.23]);y+=20;
+ function directory(){
+  page();text('CLIENT DIRECTORY',L,y+7,18,2,[.10,.12,.15]);y+=29;
+  text('Summary register | '+records.length+' clients | payment history excluded',L,y,8,1,[.42,.46,.50]);y+=24;
+  line(L,y,R,y);y+=14;
+  records.forEach((c,index)=>{
+   const rowH=66;
+   fit(rowH);
+   const top=y;
+   text((index+1)+'.',L,top+3,11,2,[.87,.12,.2]);
+   const bx=L+24;
+   const name=latin(c.business_name||'Client').slice(0,53);
+   text(name,bx,top+3,10,2,[.12,.16,.20]);
+   if(c.website_url)addLink(bx,top-8,Math.min(name.length*5.8,R-bx-60),15,c.website_url);
+   text('#'+String(c.id).padStart(5,'0'),R-49,top+3,8,2,[.40,.46,.52]);
+   const who=[c.contact_name||'',(c.status||'').replace(/_/g,' ')].filter(Boolean).join('  |  ');
+   text(who.slice(0,85),bx,top+18,8,1,[.43,.47,.51]);
+   if(c.website_url){
+     text(('Web: '+c.website_url).slice(0,92),bx,top+31,8,1,[.07,.34,.62]);
+     addLink(bx,top+23,Math.min(R-bx,490),13,c.website_url);
+   }
+   const contact=[c.email?'Email: '+c.email:'',c.phone?'Phone: '+c.phone:''].filter(Boolean).join('    |    ');
+   text(contact.slice(0,105),bx,top+44,7.4,1,[.42,.46,.50]);
+   if(c.email){const label='Email: '+c.email;addLink(bx,top+35,Math.min(label.length*3.9,R-bx),12,'mailto:'+c.email)}
+   if(c.phone){const sx=bx+(c.email?('Email: '+c.email+'    |    ').length*3.9:0);if(sx<R)addLink(sx,top+35,Math.min(120,R-sx),12,'tel:'+c.phone)}
+   y+=rowH;line(L,y-7,R,y-7);
+  });
  }
- function cover(count,sum){heading('Organization overview');field('Organization','Quartz Web Solutions');field('Clients recorded',String(count));field('Combined net payments',INR(sum));field('Prepared',date(new Date().toISOString()));field('Details','Individual client documents and payment history follow. This document reports recorded information, not independently verified bank settlement.');}
- function client(c){page();text('CLIENT #'+c.id,L,y,8,2,[.64,.68,.71]);y+=23;text(latin(c.business_name).slice(0,65),L,y,18,2,[.11,.13,.16]);y+=28;heading('Business and contact');field('Business',c.business_name);field('Contact person',c.contact_name||'-');field('Website',c.website_url||'-');field('Project status',String(c.status||'').replace(/_/g,' ').toUpperCase());field('Email',c.email);field('Phone',c.phone);field('WhatsApp',c.whatsapp);field('Work description',c.description);field('Notes',c.notes);heading('Financial summary');field('Net received (signed ledger)',INR(c.balance_paise));field('Payment entries',String(c.payments?.length||0));heading('Payment history');if(!c.payments?.length){fit(20);text('No payments recorded.',L,y,10);y+=25}else for(const p of c.payments)payment(p);heading('Record verification');field('Client created',date(c.created_at));field('Last updated',date(c.updated_at));sign();}
- if(records.length>1){page();cover(records.length,records.reduce((n,c)=>n+(+c.balance_paise||0),0))}else if(!records.length)page();
- for(const r of records)client(r);
- if(!records.length){heading('No client records');field('Export','No clients have been registered yet.')}
- pages.push(ops.join(''));
+ function sign(){
+  fit(170);y+=8;line(L,y,R,y,[.74,.77,.81]);y+=16;
+  const sigW=188;
+  const sigH=sigW*(assets.signature.height/assets.signature.width);
+  const sigTop=y;
+  image('ImSignature',L,sigTop,sigW,sigH);
+  addLink(L,sigTop,sigW,sigH,FOUNDER_URL);
+  const sealW=92;
+  const sealH=sealW*(assets.seal.height/assets.seal.width);
+  const sealTop=Math.max(sigTop-3,y-2);
+  image('ImSeal',R-sealW,sealTop,sealW,sealH);
+  addLink(R-sealW,sealTop,sealW,sealH,QUARTZ_URL);
+  y=sigTop+sigH+10;
+  text('Sabith Salah K P',L,y,10,2,[.13,.14,.16]);
+  addLink(L,y-10,86,14,FOUNDER_URL);
+  y+=14;
+  text('Founder | Quartz Web Solutions',L,y,8,1,[.42,.44,.48]);
+  addLink(L,y-9,140,12,QUARTZ_URL);
+  y+=13;
+  text('Authorized signatory',L,y,7,1,[.57,.59,.62]);
+  y+=12;
+ }
+ function cover(count,sum){heading('Organization overview');field('Organization','Quartz Web Solutions');field('Clients recorded',String(count));field('Combined net payments',INR(sum));field('Prepared',date(new Date().toISOString()));field('Details','Individual client documents and payment history follow.');}
+ function client(c){page();text('CLIENT #'+String(c.id).padStart(5,'0'),L,y,8,2,[.64,.68,.71]);y+=23;text(latin(c.business_name).slice(0,65),L,y,18,2,[.11,.13,.16]);y+=28;heading('Business and contact');field('Business',c.business_name,c.website_url);field('Contact person',c.contact_name||'-');field('Website',c.website_url||'-',c.website_url);field('Project status',String(c.status||'').replace(/_/g,' ').toUpperCase());field('Email',c.email,c.email?'mailto:'+c.email:null);field('Phone',c.phone,c.phone?'tel:'+c.phone:null);field('WhatsApp',c.whatsapp,c.whatsapp?'https://wa.me/'+String(c.whatsapp).replace(/[^0-9]/g,''):null);field('Work description',c.description);field('Notes',c.notes);heading('Financial summary');field('Net received (signed ledger)',INR(c.balance_paise));field('Payment entries',String(c.payments?.length||0));heading('Payment history');if(!c.payments?.length){fit(20);text('No payments recorded.',L,y,10);y+=25}else for(const p of c.payments)payment(p);if(c.access?.length){heading('Website access');for(const a of c.access){field(a.label+' | Login ID',a.login_id);if(!a.id_only)field('Password',a.password)}}
+  heading('Authorization');field('Client created',date(c.created_at));field('Last updated',date(c.updated_at));sign();}
+ if(mode==='directory'){directory()}
+ else {
+  if(records.length>1){page();cover(records.length,records.reduce((n,c)=>n+(+c.balance_paise||0),0))}else if(!records.length)page();
+  for(const r of records)client(r);
+  if(!records.length){heading('No client records');field('Export','No clients have been registered yet.')}
+ }
+ pushPage();
  for(let i=0;i<pages.length;i++){
     const number=`Page ${i+1} of ${pages.length}`;
-    pages[i]+=`0.65 0.67 0.70 rg\nBT /F1 8 Tf 1 0 0 1 ${fmt(L)} 36 Tm (quartzwebsolutions.com | Generated ${quote(new Date().toLocaleDateString('en-IN'))}) Tj ET\nBT /F1 8 Tf 1 0 0 1 493 36 Tm (${quote(number)}) Tj ET\n`;
+    pages[i].content+=`0.65 0.67 0.70 rg\nBT /F1 8 Tf 1 0 0 1 ${fmt(L)} 36 Tm (quartzwebsolutions.com | Generated ${quote(new Date().toLocaleDateString('en-IN'))}) Tj ET\nBT /F1 8 Tf 1 0 0 1 493 36 Tm (${quote(number)}) Tj ET\n`;
+    pages[i].annots.push({x1:L,y1:28,x2:205,y2:42,url:QUARTZ_URL});
  }
- return pdfBuild(pages,images);
+ return pdfBuild(pages,assets);
 }
-function pdfBuild(pageStreams,jpg){
+function pdfBuild(pageObjs,assets){
  const objs=[null];const add=v=>{objs.push(v);return objs.length-1};
  const cat=add(''),pagesRef=add(''),f1=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'),f2=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'),f3=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique /Encoding /WinAnsiEncoding >>');
- const imageRef=add([`<< /Type /XObject /Subtype /Image /Width 156 /Height 156 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`,jpg,'\nendstream']);
+ function imageObj(asset){return add([`<< /Type /XObject /Subtype /Image /Width ${asset.width} /Height ${asset.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${asset.bytes.length} >>\nstream\n`,asset.bytes,'\nendstream'])}
+ const logoRef=imageObj(assets.logo),sealRef=imageObj(assets.seal),sigRef=imageObj(assets.signature);
  const pageIds=[];
- for(const content of pageStreams){const bs=E.encode(content);const stream=add([`<< /Length ${bs.length} >>\nstream\n`,bs,'\nendstream']);const p=add(`<< /Type /Page /Parent ${pagesRef} 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 ${f1} 0 R /F2 ${f2} 0 R /F3 ${f3} 0 R >> /XObject << /Im1 ${imageRef} 0 R >> >> /Contents ${stream} 0 R >>`);pageIds.push(p)}
+ for(const page of pageObjs){
+   const annotRefs=[];
+   for(const a of page.annots){
+     annotRefs.push(add(`<< /Type /Annot /Subtype /Link /Rect [${fmt(a.x1)} ${fmt(a.y1)} ${fmt(a.x2)} ${fmt(a.y2)}] /Border [0 0 0] /A << /S /URI /URI (${quote(a.url)}) >> >>`));
+   }
+   const bs=E.encode(page.content);
+   const stream=add([`<< /Length ${bs.length} >>\nstream\n`,bs,'\nendstream']);
+   const annotsPart=annotRefs.length?` /Annots [${annotRefs.map(p=>p+' 0 R').join(' ')}]`:'';
+   const p=add(`<< /Type /Page /Parent ${pagesRef} 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 ${f1} 0 R /F2 ${f2} 0 R /F3 ${f3} 0 R >> /XObject << /ImLogo ${logoRef} 0 R /ImSeal ${sealRef} 0 R /ImSignature ${sigRef} 0 R >> >> /Contents ${stream} 0 R${annotsPart} >>`);
+   pageIds.push(p)
+ }
  objs[cat]=`<< /Type /Catalog /Pages ${pagesRef} 0 R >>`;
  objs[pagesRef]=`<< /Type /Pages /Kids [${pageIds.map(p=>p+' 0 R').join(' ')}] /Count ${pageIds.length} >>`;
  const out=[],offsets=[0];let length=0;function put(x){let b=x instanceof Uint8Array?x:E.encode(x);out.push(b);length+=b.length}
@@ -54,9 +126,23 @@ function pdfBuild(pageStreams,jpg){
  const xref=length;put(`xref\n0 ${objs.length}\n0000000000 65535 f \n`);for(let i=1;i<objs.length;i++)put(String(offsets[i]).padStart(10,'0')+' 00000 n \n');put(`trailer\n<< /Size ${objs.length} /Root ${cat} 0 R >>\nstartxref\n${xref}\n%%EOF`);
  return new Blob(out,{type:'application/pdf'});
 }
-async function getLogo(){const r=await fetch('/asset/img/logo/quartz-report.jpg',{cache:'force-cache'});if(!r.ok)throw Error('Quartz logo could not be loaded for PDF');return new Uint8Array(await r.arrayBuffer())}
-window.QuartzPdf={async download(records,filename='quartz-client-records.pdf'){
- const jpg=await getLogo();const pdf=create(jpg,records);
+function base64ToBytes(base64){const bin=atob(base64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);return arr}
+async function loadJpegAsset(url,bg='#ffffff',quality=.95){
+ const img=await new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>resolve(i);i.onerror=()=>reject(Error('Could not load '+url));i.src=url});
+ const c=document.createElement('canvas');c.width=img.naturalWidth||img.width;c.height=img.naturalHeight||img.height;
+ const ctx=c.getContext('2d',{alpha:false});ctx.fillStyle=bg;ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(img,0,0);
+ const dataUrl=c.toDataURL('image/jpeg',quality);return {bytes:base64ToBytes(dataUrl.split(',')[1]),width:c.width,height:c.height}
+}
+async function getAssets(){
+ const [logo,seal,signature]=await Promise.all([
+   loadJpegAsset('/asset/img/logo/quartz-web-solutions-logo-transparent.png','#0e1115',0.96),
+   loadJpegAsset('/asset/img/pdf/quartz-seal.png','#ffffff',0.96),
+   loadJpegAsset('/asset/img/pdf/sabith-signature.png','#ffffff',0.97)
+ ]);
+ return {logo,seal,signature};
+}
+window.QuartzPdf={async download(records,filename='quartz-client-records.pdf',opts={}){
+ const assets=await getAssets();const pdf=create(assets,records,opts.mode==='directory'?'directory':'client');
  const href=URL.createObjectURL(pdf),a=document.createElement('a');a.href=href;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(href),30000);return pdf;
 }};
 })();

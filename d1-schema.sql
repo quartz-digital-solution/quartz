@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS clients (id INTEGER PRIMARY KEY AUTOINCREMENT, busine
 CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(business_name);
 CREATE TABLE IF NOT EXISTS client_payments (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE, amount_paise INTEGER NOT NULL CHECK(amount_paise != 0), note TEXT NOT NULL DEFAULT '', paid_at TEXT NOT NULL, manual_date INTEGER NOT NULL DEFAULT 0 CHECK(manual_date IN (0,1)), created_at TEXT NOT NULL, voided_at TEXT);
 CREATE INDEX IF NOT EXISTS idx_payments_client ON client_payments(client_id, paid_at DESC, id DESC);
-CREATE TABLE IF NOT EXISTS share_links (id INTEGER PRIMARY KEY AUTOINCREMENT, token_hash TEXT NOT NULL UNIQUE, scope TEXT NOT NULL CHECK(scope IN ('client','all')), client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE, created_at TEXT NOT NULL, revoked_at TEXT);
+CREATE TABLE IF NOT EXISTS share_links (id INTEGER PRIMARY KEY AUTOINCREMENT, token_hash TEXT NOT NULL UNIQUE, scope TEXT NOT NULL CHECK(scope IN ('client','all')), client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE, created_at TEXT NOT NULL, revoked_at TEXT, include_credentials INTEGER NOT NULL DEFAULT 0, expires_at TEXT);
 CREATE INDEX IF NOT EXISTS idx_share_active ON share_links(scope, client_id, revoked_at);
 CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, ip_hash TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_login_attempts ON login_attempts(ip_hash, created_at);
@@ -15,3 +15,13 @@ CREATE INDEX IF NOT EXISTS idx_login_attempts ON login_attempts(ip_hash, created
 -- For an existing database with client_payments, Worker performs the non-destructive voided_at migration.
 CREATE TABLE IF NOT EXISTS admin_sessions (sid_hash TEXT PRIMARY KEY, created_at TEXT NOT NULL, expires_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at);
+
+-- Quartz CRM v3: encrypted client website access credentials and per-link sharing consent.
+CREATE TABLE IF NOT EXISTS client_access (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE, encrypted_data TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_client_access_client ON client_access(client_id,id);
+-- If upgrading existing share_links, run this once only (the Worker performs this migration automatically):
+-- ALTER TABLE share_links ADD COLUMN include_credentials INTEGER NOT NULL DEFAULT 0;
+-- ALTER TABLE share_links ADD COLUMN expires_at TEXT;
+-- Reserve client IDs starting with #00181 without changing existing references.
+INSERT INTO sqlite_sequence(name,seq) SELECT 'clients',180 WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name='clients');
+UPDATE sqlite_sequence SET seq=180 WHERE name='clients' AND seq<180;

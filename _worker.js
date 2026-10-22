@@ -56,17 +56,25 @@ async function initializeSchema(env) {
     `CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(business_name)`,
     `CREATE TABLE IF NOT EXISTS client_payments (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE, amount_paise INTEGER NOT NULL CHECK(amount_paise != 0), note TEXT NOT NULL DEFAULT '', paid_at TEXT NOT NULL, manual_date INTEGER NOT NULL DEFAULT 0 CHECK(manual_date IN (0,1)), created_at TEXT NOT NULL, voided_at TEXT)`,
     `CREATE INDEX IF NOT EXISTS idx_payments_client ON client_payments(client_id, paid_at DESC, id DESC)`,
-    `CREATE TABLE IF NOT EXISTS share_links (id INTEGER PRIMARY KEY AUTOINCREMENT, token_hash TEXT NOT NULL UNIQUE, scope TEXT NOT NULL CHECK(scope IN ('client','all')), client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE, created_at TEXT NOT NULL, revoked_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS share_links (id INTEGER PRIMARY KEY AUTOINCREMENT, token_hash TEXT NOT NULL UNIQUE, scope TEXT NOT NULL CHECK(scope IN ('client','all')), client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE, created_at TEXT NOT NULL, revoked_at TEXT, include_credentials INTEGER NOT NULL DEFAULT 0, expires_at TEXT)`,
     `CREATE INDEX IF NOT EXISTS idx_share_active ON share_links(scope, client_id, revoked_at)`,
     `CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, ip_hash TEXT NOT NULL, created_at TEXT NOT NULL)`,
     `CREATE INDEX IF NOT EXISTS idx_login_attempts ON login_attempts(ip_hash, created_at)`,
     `CREATE TABLE IF NOT EXISTS admin_sessions (sid_hash TEXT PRIMARY KEY, created_at TEXT NOT NULL, expires_at TEXT NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS client_access (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE, encrypted_data TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_client_access_client ON client_access(client_id,id)`,
     `CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at)`
   ];
   for(const stmt of statements) await env.DB.prepare(stmt).run();
   // Forward-compatible migration of existing payment data, without deleting records.
   const cols=await select(env.DB,'PRAGMA table_info(client_payments)');
   if(!cols.some(c=>c.name==='voided_at')) await env.DB.prepare('ALTER TABLE client_payments ADD COLUMN voided_at TEXT').run();
+  const shareCols=await select(env.DB,'PRAGMA table_info(share_links)');
+  if(!shareCols.some(c=>c.name==='include_credentials')) await env.DB.prepare('ALTER TABLE share_links ADD COLUMN include_credentials INTEGER NOT NULL DEFAULT 0').run();
+  if(!shareCols.some(c=>c.name==='expires_at')) await env.DB.prepare('ALTER TABLE share_links ADD COLUMN expires_at TEXT').run();
+  // IDs issued from #00181 onwards. Never renumber an existing client or break foreign keys.
+  await env.DB.prepare("INSERT INTO sqlite_sequence(name,seq) SELECT 'clients',180 WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name='clients')").run();
+  await env.DB.prepare("UPDATE sqlite_sequence SET seq=180 WHERE name='clients' AND seq<180").run();
 }
 async function hmac(value, secret) {
   const k=await crypto.subtle.importKey('raw',encoder.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);
@@ -111,6 +119,42 @@ async function getClientsFull(db) {
   const byClient=new Map();for(const p of entries){const a=byClient.get(p.client_id)||[];a.push(p);byClient.set(p.client_id,a)}
   return clients.map(c=>({...c,payments:byClient.get(c.id)||[]}));
 }
+// Public multi-client directories deliberately exclude financial, notes, access and payment data.
+function directoryClient(c) {
+  return {id:c.id,business_name:c.business_name,contact_name:c.contact_name,website_url:c.website_url,
+    status:c.status,email:c.email,phone:c.phone,whatsapp:c.whatsapp,description:c.description};
+}
+function credentialData(b){
+  const label=norm(b.label,80),login_id=norm(b.login_id,250),password=String(b.password??'');
+  const id_only=b.id_only===true;
+  if(!label||!login_id)throw new HttpProblem('Enter an access role and login ID.');
+  if(password.length>500)throw new HttpProblem('Password is too long.');
+  if(!id_only&&!password)throw new HttpProblem('Enter a password or select ID only.');
+  return {label,login_id,password:id_only?'':password,id_only};
+}
+async function credentialKey(env){
+  const s=env.CLIENT_CREDENTIALS_SECRET;
+  if(!s||s.length<32)throw new HttpProblem('Set CLIENT_CREDENTIALS_SECRET (32+ random characters) as an encrypted Cloudflare secret before saving access details.',503);
+  const raw=await crypto.subtle.digest('SHA-256',encoder.encode('quartz-client-credentials-v1:'+s));
+  return crypto.subtle.importKey('raw',raw,{name:'AES-GCM'},false,['encrypt','decrypt']);
+}
+async function encryptCredential(env,value){
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const cipher=await crypto.subtle.encrypt({name:'AES-GCM',iv},await credentialKey(env),encoder.encode(JSON.stringify(value)));
+  return 'v1.'+b64url(iv)+'.'+b64url(new Uint8Array(cipher));
+}
+function decode64(t){const x=t.replace(/-/g,'+').replace(/_/g,'/');return Uint8Array.from(atob(x+'='.repeat((4-x.length%4)%4)),c=>c.charCodeAt(0));}
+async function decryptCredential(env,text){
+  try {const [v,a,b]=text.split('.');if(v!=='v1'||!a||!b)throw Error('format');
+    const clear=await crypto.subtle.decrypt({name:'AES-GCM',iv:decode64(a)},await credentialKey(env),decode64(b));
+    return JSON.parse(new TextDecoder().decode(clear));
+  }catch(e){if(e instanceof HttpProblem)throw e;throw new HttpProblem('Access details cannot be decrypted. Confirm CLIENT_CREDENTIALS_SECRET has not changed.',503)}
+}
+async function getAccess(db,env,id){
+ const rows=await select(db,'SELECT id,encrypted_data,created_at,updated_at FROM client_access WHERE client_id=? ORDER BY id ASC',id);
+ return Promise.all(rows.map(async r=>({id:r.id,...await decryptCredential(env,r.encrypted_data),created_at:r.created_at,updated_at:r.updated_at})));
+}
+const getDirectory = async db => (await getClients(db)).sort((a,b)=>a.id-b.id).map(directoryClient);
 const getPayments = (db,id) => select(db,'SELECT id,client_id,amount_paise,note,paid_at,manual_date,created_at,voided_at FROM client_payments WHERE client_id=? ORDER BY paid_at DESC,id DESC',id);
 function clientInput(b) {
   const status=['active','maintenance','on_hold','closed'].includes(b.status) ? b.status : 'active';
@@ -208,15 +252,15 @@ async function publicApi(req,env,url) {
   const m=url.pathname.match(/^\/api\/public\/shared\/([a-zA-Z0-9_-]{32,100})$/);
   if(m && req.method==='GET') {
     await schema(env);
-    const link=await first(env.DB,'SELECT * FROM share_links WHERE token_hash=? AND revoked_at IS NULL',await hash(m[1]));
+    const link=await first(env.DB,'SELECT * FROM share_links WHERE token_hash=? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>?)',await hash(m[1]),now());
     if(!link) return error('This link is invalid or has been revoked.',404);
     if(link.scope==='client') {
       const client=await getClient(env.DB,link.client_id);
       if(!client) return error('Client not found',404);
-      return reply({ok:true,scope:'client',clients:[{...client,payments:await getPayments(env.DB,client.id)}]},200,securityHeaders());
+      return reply({ok:true,scope:'client',clients:[{...client,payments:await getPayments(env.DB,client.id),
+        access:link.include_credentials ? await getAccess(env.DB,env,client.id) : []}]},200,securityHeaders());
     }
-    const detail=await getClientsFull(env.DB);
-    return reply({ok:true,scope:'all',clients:detail},200,securityHeaders());
+    return reply({ok:true,scope:'all',clients:await getDirectory(env.DB)},200,securityHeaders());
   }
   return error('Not found',404);
 }
@@ -270,7 +314,7 @@ async function adminApi(req,env,url) {
   const enquiry=path.match(/^\/api\/admin\/enquiries\/(\d+)\/read$/);
   if(enquiry && req.method==='POST') {const r=await exec(db,"UPDATE enquiries SET status='read',read_at=? WHERE id=? AND status='new'",now(),numId(enquiry[1]));return r.meta.changes?reply({ok:true}):error('New enquiry not found',404);}
   if(path==='/api/admin/clients' && req.method==='GET') return reply({ok:true,clients:await getClients(db)});
-  if(path==='/api/admin/clients/full' && req.method==='GET') return reply({ok:true,clients:await getClientsFull(db)});
+  if(path==='/api/admin/clients/full' && req.method==='GET') return reply({ok:true,clients:await getDirectory(db)});
   if(path==='/api/admin/clients' && req.method==='POST') {
     let c;try {c=clientInput(await jsonBody(req));} catch(e){return error(e.message)}
     const t=now(); const r=await first(db,'INSERT INTO clients (business_name,contact_name,website_url,status,email,phone,whatsapp,description,notes,currency,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id',c.business_name,c.contact_name,c.website_url,c.status,c.email,c.phone,c.whatsapp,c.description,c.notes,c.currency,t,t);
@@ -285,6 +329,30 @@ async function adminApi(req,env,url) {
       let c;try{c=clientInput(await jsonBody(req));}catch(e){return error(e.message)}
       await exec(db,'UPDATE clients SET business_name=?,contact_name=?,website_url=?,status=?,email=?,phone=?,whatsapp=?,description=?,notes=?,updated_at=? WHERE id=?',c.business_name,c.contact_name,c.website_url,c.status,c.email,c.phone,c.whatsapp,c.description,c.notes,now(),id);
       return reply({ok:true,client:await getClient(db,id)});
+    }
+  }
+  // Credentials for a client's own website: separately encrypted at rest and admin-only.
+  const am=path.match(/^\/api\/admin\/clients\/(\d+)\/access$/);
+  if(am){
+    const id=numId(am[1]);if(!(await getClient(db,id)))return error('Client not found',404);
+    if(req.method==='GET')return reply({ok:true,access:await getAccess(db,env,id)});
+    if(req.method==='POST'){
+      const entry=credentialData(await jsonBody(req));const encrypted=await encryptCredential(env,entry);const t=now();
+      await exec(db,'INSERT INTO client_access(client_id,encrypted_data,created_at,updated_at) VALUES(?,?,?,?)',id,encrypted,t,t);
+      return reply({ok:true,access:await getAccess(db,env,id)},201);
+    }
+  }
+  const aitem=path.match(/^\/api\/admin\/clients\/(\d+)\/access\/(\d+)$/);
+  if(aitem){
+    const id=numId(aitem[1]),entryId=numId(aitem[2]);
+    if(req.method==='DELETE'){
+      const r=await exec(db,'DELETE FROM client_access WHERE client_id=? AND id=?',id,entryId);
+      return r.meta.changes?reply({ok:true}):error('Access record not found',404);
+    }
+    if(req.method==='PUT'){
+      const entry=credentialData(await jsonBody(req));const encrypted=await encryptCredential(env,entry);
+      const r=await exec(db,'UPDATE client_access SET encrypted_data=?,updated_at=? WHERE client_id=? AND id=?',encrypted,now(),id,entryId);
+      return r.meta.changes?reply({ok:true}):error('Access record not found',404);
     }
   }
   const pm=path.match(/^\/api\/admin\/clients\/(\d+)\/payments$/);
@@ -315,11 +383,14 @@ async function adminApi(req,env,url) {
   }
   if(path==='/api/admin/shares' && req.method==='POST') {
     const b=await jsonBody(req), scope=b.scope==='all'?'all':'client',id=scope==='client'?numId(String(b.client_id)) : null;
+    const include=scope==='client' && b.include_credentials===true ? 1 : 0;
+    if(include)await credentialKey(env);
     if(scope==='client' && !(await getClient(db,id))) return error('Client not found',404);
     const token=b64url(crypto.getRandomValues(new Uint8Array(32))), token_hash=await hash(token);
-    const stmts=[db.prepare('UPDATE share_links SET revoked_at=? WHERE scope=? AND revoked_at IS NULL AND '+(scope==='all'?'client_id IS NULL':'client_id=?')).bind(...(scope==='all'?[now(),scope]:[now(),scope,id])),db.prepare('INSERT INTO share_links(token_hash,scope,client_id,created_at) VALUES(?,?,?,?)').bind(token_hash,scope,id,now())];
+    const expires_at=include?new Date(Date.now()+24*60*60*1000).toISOString():null;
+    const stmts=[db.prepare('UPDATE share_links SET revoked_at=? WHERE scope=? AND revoked_at IS NULL AND '+(scope==='all'?'client_id IS NULL':'client_id=?')).bind(...(scope==='all'?[now(),scope]:[now(),scope,id])),db.prepare('INSERT INTO share_links(token_hash,scope,client_id,created_at,include_credentials,expires_at) VALUES(?,?,?,?,?,?)').bind(token_hash,scope,id,now(),include,expires_at)];
     await db.batch(stmts);
-    return reply({ok:true,url:`${BASE}/share/${token}`,scope});
+    return reply({ok:true,url:`${BASE}/share/${token}`,scope,expires_at});
   }
   if(path==='/api/admin/shares/revoke' && req.method==='POST') {
     const b=await jsonBody(req),scope=b.scope==='all'?'all':'client',id=numId(String(b.client_id));
@@ -327,6 +398,12 @@ async function adminApi(req,env,url) {
     const query=scope==='all'?'UPDATE share_links SET revoked_at=? WHERE scope=? AND client_id IS NULL AND revoked_at IS NULL':'UPDATE share_links SET revoked_at=? WHERE scope=? AND client_id=? AND revoked_at IS NULL';
     const r=await exec(db,query,...(scope==='all'?[now(),scope]:[now(),scope,id]));
     return reply({ok:true,revoked:r.meta.changes||0});
+  }
+  const accessExport=path.match(/^\/api\/admin\/clients\/(\d+)\/pdf-data$/);
+  if(accessExport && req.method==='GET'){
+    const id=numId(accessExport[1]),c=await getClient(db,id);if(!c)return error('Client not found',404);
+    const include=url.searchParams.get('include_credentials')==='true';
+    return reply({ok:true,clients:[{...c,payments:await getPayments(db,id),access:include?await getAccess(db,env,id):[]}]});
   }
   if(path==='/api/admin/export' && req.method==='GET') {
     const format=url.searchParams.get('format')||'json';

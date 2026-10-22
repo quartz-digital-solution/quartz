@@ -47,7 +47,7 @@ Reference: https://developers.cloudflare.com/turnstile/get-started/server-side-v
 
 - Private admin JSON endpoints require a valid D1-backed session. The browser cannot directly modify D1 without authorization.
 - Unsafe admin requests reject cross-origin requests, and JSON request sizes are limited based on **actual bytes received**, not only the Content-Length header.
-- All client notes and payment details are still private. **Creating a share-all link will disclose the entire client directory and ledger to anyone who has the link.** The admin now displays an explicit warning before creating one.
+- All client notes and payment details are still private. **Share All only discloses the compact business/contact directory, never payment entries, private notes or access credentials.** The admin now displays an explicit warning before creating one.
 - Share tokens are generated from 32 cryptographically random bytes and only hashed values are stored in D1. Revoking a link stops its future API access. A read-only link is not a guarantee that recipients cannot copy/download the data they have seen.
 - Payments can now be **voided without deleting the original row**. Voided entries stay visible with `voided_at`, are excluded from totals, and appear marked as voided in HTML/PDF/exports. This is an operational audit trail, not cryptographically tamper-proof accounting.
 - Downloads include sensitive personal data; save CSV, JSON, and PDF backups in access-controlled storage. CSV fields beginning with spreadsheet formula syntax are escaped.
@@ -62,8 +62,17 @@ Reference: https://developers.cloudflare.com/turnstile/get-started/server-side-v
 - [ ] Log out, then hit `/api/admin/me` using the **old** cookie: expected `401`.
 - [ ] POST a project enquiry; verify it appears in **New enquiries** and moves to Read History after marking read.
 - [ ] Create and then revoke a **single** client share link; it should return `404` afterward.
-- [ ] Verify exported PDFs and CSV/JSON locally. A typed founder authorization/styled seal is **not** a legal cryptographic signature.
+- [ ] Verify exported PDFs and CSV/JSON locally. The exported document contains the brand seal and supplied signature artwork.
 - [ ] Ensure response headers include `Content-Security-Policy`, `X-Content-Type-Options`, and `X-Frame-Options` for site HTML; admin/share records are `Cache-Control: no-store`.
 - [ ] Confirm old `connected_sites` hosting has not been accidentally restored, and Quartz's own marketing SEO pages are intact.
 
 **Security scope:** This build was audited and exercised with local simulated Cloudflare D1 tests; no live DNS, SSL, Cloudflare dashboard permissions, WAF policy, D1 secrets, Access policies, or production penetration test was performed. Deploy and configure the infrastructure settings above yourself; never claim the website is invulnerable.
+
+## 7. New client website access records
+
+- Add Cloudflare **encrypted secret** `CLIENT_CREDENTIALS_SECRET` (32+ independently generated random characters). Do not reuse `ADMIN_PASSWORD` or `ADMIN_SESSION_SECRET`. Do not change this secret after saving credentials unless you have securely re-encrypted all entries: the old encrypted records will otherwise be unreadable.
+- Open a client and use **Website access** to add one or more role/username/password entries, or check **ID only** to omit the password. The whole entry is encrypted with AES-256-GCM before being stored in D1. The client-site passwords do **not** set up or alter Quartz admin authentication.
+- Private CSV/JSON ledger backups do not include passwords. The individual-client PDF and read-only client link show a Yes/No dialog and exclude website credentials by default.
+- Opt-in links that expose client-site credentials automatically expire after 24 hours; rotate/revoke early if disclosed to the wrong recipient. Client accounts should use role-specific access and reset passwords after transfers as appropriate.
+- The **Download All** PDF and **Share All** read-only link only use a compact directory containing business name, client ID, status, contact name, website, email and phone. They omit private notes, payments, financial totals, and credentials.
+- New client numeric IDs start at **181**; existing clients keep their IDs and their payment-history references.
