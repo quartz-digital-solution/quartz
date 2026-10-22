@@ -238,3 +238,8 @@ button,input,textarea{font:inherit}
 /* Private API-backed project enquiry state */
 .honeypot-field{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
 .enquiry-loader{display:none;gap:5px;align-items:center;justify-content:center}.enquiry-loader i{width:5px;height:5px;background:currentColor;border-radius:50%;animation:enquiryPulse .85s ease-in-out infinite alternate}.enquiry-loader i:nth-child(2){animation-delay:.15s}.enquiry-loader i:nth-child(3){animation-delay:.3s}.contact-form button.submitting{opacity:.85;cursor:wait}.contact-form button.submitting>span:first-child{display:none}.contact-form button.submitting .enquiry-loader{display:flex}.enquiry-status{margin:4px 0 0!important;font-size:12px;line-height:1.6;min-height:0;color:#b5bac2}.enquiry-status.success{color:#78ddb1}.enquiry-status.error{color:#ff8899}@keyframes enquiryPulse{to{opacity:.25;transform:scale(.7)}}
+
+/* Keep the contact destination clear of the fixed header. */
+#contact{scroll-margin-top:105px}
+.mobile-start-project{color:#fff!important;background:#ff1738;border-radius:12px;margin:9px 5%;padding:13px 16px!important;text-align:center;font-weight:650}
+@media(max-width:600px){#contact{scroll-margin-top:76px}}

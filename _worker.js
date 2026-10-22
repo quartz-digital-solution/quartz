@@ -247,7 +247,7 @@ async function publicApi(req,env,url) {
     const hit=await first(env.DB,'SELECT COUNT(*) AS n FROM enquiries WHERE ip_hash=? AND created_at>=?',ip,new Date(Date.now()-15*60000).toISOString());
     if(hit.n>=4) return error('Too many enquiries. Please try again later.',429);
     await exec(env.DB,'INSERT INTO enquiries (name,email,project,message,status,created_at,ip_hash) VALUES (?,?,?,?,?,?,?)',name,email,project,message,'new',now(),ip);
-    return reply({ok:true,message:'Your enquiry has been received.'},201);
+    return reply({ok:true,message:'Your enquiry has been received.'},201,{'Cache-Control':'no-store'});
   }
   const m=url.pathname.match(/^\/api\/public\/shared\/([a-zA-Z0-9_-]{32,100})$/);
   if(m && req.method==='GET') {

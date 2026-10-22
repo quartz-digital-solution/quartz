@@ -1,4 +1,4 @@
-const CACHE='quartz-shell-v4';
+const CACHE='quartz-shell-v5';
 const SHELL=['/','/asset/style.css','/asset/script.js','/asset/img/fav/icon-192.png','/asset/img/fav/icon-512.png','/asset/img/fav/favicon-32.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).catch(()=>{}));self.skipWaiting();});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));self.clients.claim();});

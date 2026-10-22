@@ -104,8 +104,16 @@ async function setupEnquiryVerification() {
         document.head.appendChild(script);
     } catch { /* Public form continues without Turnstile only if server-side verification is not enabled. */ }
 }
-if (document.getElementById('startProjectBtn'))
-    document.getElementById('startProjectBtn').addEventListener('click', () => {window.location.hash='contact'});
+const startProjectBtn=document.getElementById('startProjectBtn');
+if(startProjectBtn)startProjectBtn.addEventListener('click',()=>{
+    const section=document.getElementById('contact');
+    if(!section)return;
+    section.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
+    if(window.location.hash!=='#contact')history.replaceState(null,'','#contact');
+    closeMobileMenu();
+    const field=document.getElementById('name');
+    if(field)field.focus({preventScroll:true});
+});
 const enquiryForm = document.getElementById('enquiryForm');
 if (enquiryForm) enquiryForm.addEventListener('submit', async event => {
     event.preventDefault();
@@ -129,7 +137,9 @@ if (enquiryForm) enquiryForm.addEventListener('submit', async event => {
         status.className='enquiry-status error';
         return;
     }
+    if (button.disabled) return;
     button.disabled = true;
+    button.setAttribute('aria-busy','true');
     button.classList.add('submitting');
     status.textContent = '';
     status.className = 'enquiry-status';
@@ -140,7 +150,7 @@ if (enquiryForm) enquiryForm.addEventListener('submit', async event => {
         });
         const result = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(result.error || 'Could not submit your enquiry.');
-        status.textContent = '✓ Enquiry sent successfully. We will get back to you soon.';
+        status.textContent = 'Enquiry received successfully. We will contact you soon.';
         status.classList.add('success');
         enquiryForm.reset();
         enquiryTurnstileToken='';
@@ -152,6 +162,7 @@ if (enquiryForm) enquiryForm.addEventListener('submit', async event => {
         if (enquiryWidgetId !== null && window.turnstile) window.turnstile.reset(enquiryWidgetId);
     } finally {
         button.disabled = false;
+        button.removeAttribute('aria-busy');
         button.classList.remove('submitting');
     }
 });

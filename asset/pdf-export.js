@@ -23,10 +23,11 @@ function create(assets,records,mode){
  function pushPage(){pages.push({content:ops.join(''),annots:[...annots]});ops=[];annots=[]}
  function header(){
   rect(0,0,W,92,[.055,.065,.08]);rect(0,92,W,3,[.99,.14,.23]);
-  image('ImLogo',L,26,42,42);addLink(L,26,42,42,QUARTZ_URL);
-  text('QUARTZ WEB SOLUTIONS',95,37,16,2,[1,1,1]);
-  addLink(95,22,215,22,QUARTZ_URL);
-  text('CLIENT RECORDS  /  CONFIDENTIAL DOCUMENT',95,54,8,1,[.76,.78,.81]);
+  // Align logo to the vertical centre of the two-line brand lockup.
+  image('ImLogo',L,22,40,40);addLink(L,22,40,40,QUARTZ_URL);
+  text('QUARTZ WEB SOLUTIONS',95,44,16,2,[1,1,1]);
+  addLink(95,27,215,20,QUARTZ_URL);
+  text('CLIENT RECORDS  /  CONFIDENTIAL DOCUMENT',95,58,8,1,[.76,.78,.81]);
   y=118;
  }
  function page(){if(ops.length)pushPage();header()}
@@ -62,31 +63,72 @@ function create(assets,records,mode){
    y+=rowH;line(L,y-7,R,y-7);
   });
  }
+ // Compact one-column records keep normal client profiles, signature, and seal together on one page.
+ function miniTitle(s){fit(27);y+=7;text(s.toUpperCase(),L,y,8,2,[.79,.12,.19]);y+=9;line(L,y,R,y);y+=11}
+ function miniField(label,value,href){
+   const at=L+118,lines=wrap(String(value??'').trim()||'-',76);fit(Math.max(18,lines.length*11+5));
+   text(label.toUpperCase(),L,y,7.1,2,[.49,.52,.56]);
+   for(let i=0;i<lines.length;i++){
+     text(lines[i],at,y+i*11,8.8,1,href?[.06,.35,.62]:[.13,.16,.2]);
+     if(href)addLink(at,y+i*11-9,Math.min(R-at,Math.max(30,lines[i].length*4.5)),12,href);
+   }
+   y+=Math.max(17,lines.length*11+3);
+ }
+ function miniPayment(p){
+   const note=(p.voided_at?'VOIDED | ':'')+(p.note||'Payment');
+   const lines=wrap(note,40);
+   fit(Math.max(21,lines.length*11+6));
+   text(date(p.paid_at),L,y,7.3,1,[.44,.47,.51]);
+   for(let i=0;i<lines.length;i++)text(lines[i],L+153,y+i*11,8.2,1,[.17,.20,.24]);
+   text((p.amount_paise>=0?'+':'')+INR(p.amount_paise),R-93,y,8.6,2,p.voided_at?[.58,.59,.60]:p.amount_paise<0?[.73,.15,.20]:[.12,.44,.30]);
+   y+=Math.max(21,lines.length*11+5);
+   line(L,y-5,R,y-5,[.90,.91,.92]);
+ }
  function sign(){
-  fit(170);y+=8;line(L,y,R,y,[.74,.77,.81]);y+=16;
-  const sigW=188;
+  // Reserve a complete block so the signature, founder's name, and seal never split.
+  const sigW=141;
   const sigH=sigW*(assets.signature.height/assets.signature.width);
-  const sigTop=y;
-  image('ImSignature',L,sigTop,sigW,sigH);
-  addLink(L,sigTop,sigW,sigH,FOUNDER_URL);
-  const sealW=92;
+  const sealW=82;
   const sealH=sealW*(assets.seal.height/assets.seal.width);
-  const sealTop=Math.max(sigTop-3,y-2);
-  image('ImSeal',R-sealW,sealTop,sealW,sealH);
-  addLink(R-sealW,sealTop,sealW,sealH,QUARTZ_URL);
-  y=sigTop+sigH+10;
-  text('Sabith Salah K P',L,y,10,2,[.13,.14,.16]);
-  addLink(L,y-10,86,14,FOUNDER_URL);
-  y+=14;
-  text('Founder | Quartz Web Solutions',L,y,8,1,[.42,.44,.48]);
-  addLink(L,y-9,140,12,QUARTZ_URL);
-  y+=13;
-  text('Authorized signatory',L,y,7,1,[.57,.59,.62]);
-  y+=12;
+  const blockH=Math.max(sigH,sealH)+42;
+  fit(blockH+16);
+  y+=8;line(L,y,R,y,[.74,.77,.81]);y+=11;
+  const top=y;
+  image('ImSignature',L,top,sigW,sigH);
+  addLink(L,top,sigW,sigH,FOUNDER_URL);
+  image('ImSeal',R-sealW,top,sealW,sealH);
+  addLink(R-sealW,top,sealW,sealH,QUARTZ_URL);
+  y=top+Math.max(sigH,sealH)+12;
+  text('Sabith Salah K P',L,y,9,2,[.13,.14,.16]);
+  addLink(L,y-10,94,13,FOUNDER_URL);y+=14;
+  text('Founder | Quartz Web Solutions',L,y,7.6,1,[.42,.44,.48]);
+  addLink(L,y-9,144,12,QUARTZ_URL);y+=10;
  }
  function cover(count,sum){heading('Organization overview');field('Organization','Quartz Web Solutions');field('Clients recorded',String(count));field('Combined net payments',INR(sum));field('Prepared',date(new Date().toISOString()));field('Details','Individual client documents and payment history follow.');}
- function client(c){page();text('CLIENT #'+String(c.id).padStart(5,'0'),L,y,8,2,[.64,.68,.71]);y+=23;text(latin(c.business_name).slice(0,65),L,y,18,2,[.11,.13,.16]);y+=28;heading('Business and contact');field('Business',c.business_name,c.website_url);field('Contact person',c.contact_name||'-');field('Website',c.website_url||'-',c.website_url);field('Project status',String(c.status||'').replace(/_/g,' ').toUpperCase());field('Email',c.email,c.email?'mailto:'+c.email:null);field('Phone',c.phone,c.phone?'tel:'+c.phone:null);field('WhatsApp',c.whatsapp,c.whatsapp?'https://wa.me/'+String(c.whatsapp).replace(/[^0-9]/g,''):null);field('Work description',c.description);field('Notes',c.notes);heading('Financial summary');field('Net received (signed ledger)',INR(c.balance_paise));field('Payment entries',String(c.payments?.length||0));heading('Payment history');if(!c.payments?.length){fit(20);text('No payments recorded.',L,y,10);y+=25}else for(const p of c.payments)payment(p);if(c.access?.length){heading('Website access');for(const a of c.access){field(a.label+' | Login ID',a.login_id);if(!a.id_only)field('Password',a.password)}}
-  heading('Authorization');field('Client created',date(c.created_at));field('Last updated',date(c.updated_at));sign();}
+ function client(c){
+  page();
+  text('CLIENT #'+String(c.id).padStart(5,'0'),L,y,8,2,[.64,.68,.71]);y+=20;
+  text(latin(c.business_name||'Client').slice(0,64),L,y,16,2,[.11,.13,.16]);y+=20;
+  miniTitle('Business and contact');
+  miniField('Business',c.business_name,c.website_url);
+  miniField('Contact',c.contact_name);
+  miniField('Website',c.website_url,c.website_url);
+  miniField('Status',String(c.status||'').replace(/_/g,' ').toUpperCase());
+  miniField('Email',c.email,c.email?'mailto:'+c.email:null);
+  miniField('Phone',c.phone,c.phone?'tel:'+c.phone:null);
+  if(c.whatsapp)miniField('WhatsApp',c.whatsapp,'https://wa.me/'+String(c.whatsapp).replace(/[^0-9]/g,''));
+  if(c.description)miniField('Project / services',c.description);
+  if(c.notes)miniField('Notes',c.notes);
+  miniTitle('Financial summary');
+  miniField('Net received',INR(c.balance_paise)+'  |  '+(c.payments?.length||0)+' payment entries');
+  miniTitle('Payment history');
+  if(!c.payments?.length){fit(18);text('No payments recorded.',L,y,8.6);y+=16}
+  else for(const p of c.payments)miniPayment(p);
+  if(c.access?.length){miniTitle('Website access');for(const a of c.access){miniField(a.label+' ID',a.login_id);if(!a.id_only)miniField('Password',a.password)}}
+  miniTitle('Record information');
+  miniField('Created / updated',date(c.created_at)+'  |  '+date(c.updated_at));
+  sign();
+ }
  if(mode==='directory'){directory()}
  else {
   if(records.length>1){page();cover(records.length,records.reduce((n,c)=>n+(+c.balance_paise||0),0))}else if(!records.length)page();

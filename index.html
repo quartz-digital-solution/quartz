@@ -65,6 +65,7 @@
 <a href="#projects">Work</a>
 <a href="#about">About</a>
 <a href="#contact">Contact</a>
+<a href="#contact" class="mobile-start-project">Start a Project</a>
 </div>
 <main>
 <section class="hero" id="home">
@@ -193,14 +194,14 @@
 </div>
 <form class="contact-form" id="enquiryForm">
 <label for="name">Name</label>
-<input autocomplete="name" id="name" placeholder="Your name" required="" type="text"/>
+<input autocomplete="name" id="name" maxlength="120" placeholder="Your name" required="" type="text"/>
 <label for="email">Email</label>
-<input autocomplete="email" id="email" placeholder="you@example.com" required="" type="email"/>
+<input autocomplete="email" id="email" maxlength="180" placeholder="you@example.com" required="" type="email"/>
 <label for="project">Project type</label>
-<input id="project" placeholder="Website, web app, e-commerce..." type="text"/>
+<input id="project" placeholder="Website, web app, e-commerce..." maxlength="180" type="text"/>
 <label for="message">Project brief</label>
-<textarea id="message" placeholder="Tell us what you want to build"></textarea>
-<input class="honeypot-field" type="text" name="company_url" id="company_url" tabindex="-1" autocomplete="off" aria-hidden="true"><div id="enquiryVerification" class="enquiry-verification" aria-live="polite"></div><button type="submit" id="enquirySubmit"><span>Send Project Enquiry</span><span class="enquiry-loader" aria-hidden="true"><i></i><i></i><i></i></span></button><p id="enquiryStatus" class="enquiry-status" role="status" aria-live="polite"></p>
+<textarea id="message" maxlength="3500" placeholder="Tell us what you want to build"></textarea>
+<input class="honeypot-field" type="text" name="company_url" id="company_url" tabindex="-1" autocomplete="off" aria-hidden="true"><div id="enquiryVerification" class="enquiry-verification" aria-live="polite"></div><button type="submit" id="enquirySubmit" aria-label="Send Project Enquiry"><span>Send Project Enquiry</span><span class="enquiry-loader" aria-hidden="true"><i></i><i></i><i></i></span></button><p id="enquiryStatus" class="enquiry-status" role="status" aria-live="polite"></p>
 </form>
 </div>
 </section>
