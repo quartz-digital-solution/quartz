@@ -27,7 +27,7 @@ function create(assets,records,mode){
   image('ImLogo',L,22,40,40);addLink(L,22,40,40,QUARTZ_URL);
   text('QUARTZ WEB SOLUTIONS',95,44,16,2,[1,1,1]);
   addLink(95,27,215,20,QUARTZ_URL);
-  text('CLIENT RECORDS  /  CONFIDENTIAL DOCUMENT',95,58,8,1,[.76,.78,.81]);
+  text(mode==='application'?'CAREERS / CONFIDENTIAL APPLICATION':'CLIENT RECORDS / CONFIDENTIAL DOCUMENT',95,58,8,1,[.76,.78,.81]);
   y=118;
  }
  function page(){if(ops.length)pushPage();header()}
@@ -181,7 +181,31 @@ function create(assets,records,mode){
   y+=20;
   sign();
  }
- if(mode==='directory'){directory()}
+ function application(record){
+  page();
+  text('CAREER APPLICATION',L,y+5,18,2,[.12,.14,.18]);y+=26;
+  text('CONFIDENTIAL / INTERNAL RECRUITMENT RECORD',L,y,7.6,2,[.61,.28,.36]);y+=22;
+  line(L,y,R,y,[.84,.85,.88]);y+=17;
+  const labels={'remote-telecalling-executive':'Telecalling & Marketing Executive','remote-business-development-executive':'Business Development & Marketing Executive','remote-web-developer':'Web Developer'};
+  miniTitle('Application details');
+  miniField('Reference','QWS-CAREER-'+String(record.id).padStart(5,'0'));
+  miniField('Position',labels[record.role]||record.role);
+  miniField('Submitted',date(record.created_at));
+  miniField('Review status',record.status||'new');
+  miniTitle('Applicant information');
+  miniField('Full name',record.name);miniField('Email',record.email,'mailto:'+record.email);
+  miniField('Phone',record.phone);miniField('WhatsApp',record.whatsapp);
+  miniField('Education',record.education);
+  miniField('Location',[record.district,record.state,record.country,record.postal_code].filter(Boolean).join(', '));
+  miniTitle('Skills and notes');
+  miniField('Relevant skills',record.skills);
+  if(record.notes)miniField('Additional notes',record.notes);
+  miniField('CV attached',record.cv_filename||'None (resume is downloaded separately)');
+  fit(35);y+=12;line(L,y,R,y,[.83,.85,.88]);y+=16;
+  text('For recruitment review only. Applicant documents are held in private storage.',L,y,7.6,3,[.43,.47,.52]);
+ }
+ if(mode==='application'){application(records[0])}
+ else if(mode==='directory'){directory()}
  else {
   if(records.length>1){page();cover(records.length,records.reduce((n,c)=>n+(+c.balance_paise||0),0))}else if(!records.length)page();
   for(const r of records)client(r);
@@ -235,7 +259,10 @@ async function getAssets(){
  ]);
  return {logo,seal,signature};
 }
-window.QuartzPdf={async download(records,filename='quartz-client-records.pdf',opts={}){
+window.QuartzPdf={async downloadApplication(record,filename='quartz-career-application.pdf'){
+ const assets=await getAssets(),pdf=create(assets,[record],'application');
+ const href=URL.createObjectURL(pdf),a=document.createElement('a');a.href=href;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(href),30000);return pdf;
+},async download(records,filename='quartz-client-records.pdf',opts={}){
  const assets=await getAssets();const pdf=create(assets,records,opts.mode==='directory'?'directory':'client');
  const href=URL.createObjectURL(pdf),a=document.createElement('a');a.href=href;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(href),30000);return pdf;
 }};

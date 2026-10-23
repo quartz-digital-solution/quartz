@@ -53,6 +53,33 @@ async function ensureEnquiries(env) {
   })();
   try {await enquiriesInFlight;}finally{enquiriesInFlight=null;}
 }
+let careersReady=false,careersInFlight=null;
+async function ensureCareers(env){
+ if(careersReady)return;
+ if(careersInFlight)return careersInFlight;
+ careersInFlight=(async()=>{
+  if(!env.DB)throw new HttpProblem('Database is unavailable.',503);
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS career_applications (id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, whatsapp TEXT NOT NULL, education TEXT NOT NULL, skills TEXT NOT NULL, country TEXT NOT NULL, state TEXT NOT NULL, district TEXT NOT NULL, postal_code TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', cv_key TEXT, cv_filename TEXT, cv_size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','reviewed')), created_at TEXT NOT NULL, ip_hash TEXT NOT NULL)`).run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_career_created ON career_applications(created_at DESC)').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_career_ip ON career_applications(ip_hash,created_at)').run();
+  careersReady=true;
+ })();try{await careersInFlight}finally{careersInFlight=null}
+}
+const careerRoles=new Set(['remote-telecalling-executive','remote-business-development-executive','remote-web-developer']);
+function validCareerPhone(s){return /^\+?[0-9()\- .]{7,32}$/.test(s)&&s.replace(/\D/g,'').length>=7;}
+function cvFileInfo(file){
+ const original=norm(file.name,130).replace(/[\/<>:"|?*\x00-\x1f]/g,'_');
+ const extension=(original.split('.').pop()||'').toLowerCase();
+ const allowed={pdf:'application/pdf',doc:'application/msword',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'};
+ if(!Object.hasOwn(allowed,extension))throw new HttpProblem('CV must be a PDF, DOC, or DOCX file.');
+ if(!file.size||file.size>5*1024*1024)throw new HttpProblem('CV must be 5 MB or smaller.',413);
+ return {filename:original,extension,contentType:allowed[extension]};
+}
+function validCvSignature(bytes,extension){
+ if(extension==='pdf')return [0x25,0x50,0x44,0x46,0x2d].every((v,i)=>bytes[i]===v);
+ if(extension==='docx')return bytes[0]===0x50&&bytes[1]===0x4b&&[0x03,0x05,0x07].includes(bytes[2]);
+ return [0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1].every((v,i)=>bytes[i]===v);
+}
 let schemaReady = false; let schemaInFlight = null;
 async function schema(env) {
   if(schemaReady) return;
@@ -76,6 +103,9 @@ async function initializeSchema(env) {
     `CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, ip_hash TEXT NOT NULL, created_at TEXT NOT NULL)`,
     `CREATE INDEX IF NOT EXISTS idx_login_attempts ON login_attempts(ip_hash, created_at)`,
     `CREATE TABLE IF NOT EXISTS admin_sessions (sid_hash TEXT PRIMARY KEY, created_at TEXT NOT NULL, expires_at TEXT NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS career_applications (id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, whatsapp TEXT NOT NULL, education TEXT NOT NULL, skills TEXT NOT NULL, country TEXT NOT NULL, state TEXT NOT NULL, district TEXT NOT NULL, postal_code TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', cv_key TEXT, cv_filename TEXT, cv_size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','reviewed')), created_at TEXT NOT NULL, ip_hash TEXT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_career_created ON career_applications(created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_career_ip ON career_applications(ip_hash,created_at)`,
     `CREATE TABLE IF NOT EXISTS client_access (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE, encrypted_data TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
     `CREATE INDEX IF NOT EXISTS idx_client_access_client ON client_access(client_id,id)`,
     `CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at)`
@@ -286,6 +316,43 @@ async function publicApi(req,env,url) {
     const inserted=await exec(env.DB,'INSERT INTO enquiries (name,email,project,message,status,created_at,ip_hash) VALUES (?,?,?,?,?,?,?)',name,email,project,message,'new',now(),ip);
     return reply({ok:true,enquiry_id:inserted.meta?.last_row_id??null,message:'Your enquiry has been received.'},201,{'Cache-Control':'no-store'});
   }
+  if(url.pathname==='/api/careers/apply'&&req.method==='POST'){
+    if(req.headers.get('Origin')!==BASE||req.headers.get('Sec-Fetch-Site')==='cross-site')return error('Origin not allowed',403);
+    if(!/^multipart\/form-data(?:;|$)/i.test(req.headers.get('Content-Type')||''))return error('Use a multipart form',415);
+    const bodyLimit=5*1024*1024+80000;
+    const length=Number(req.headers.get('Content-Length')||0);
+    if(length>bodyLimit)return error('Application exceeds the file size limit.',413);
+    // Bounded body stream; an omitted/incorrect Content-Length must not bypass limits.
+    let total=0;const chunks=[];const reader=req.body?.getReader();if(!reader)return error('Missing form data');
+    while(true){const {value,done}=await reader.read();if(done)break;total+=value.byteLength;if(total>bodyLimit){await reader.cancel();return error('Application exceeds the file size limit.',413)}chunks.push(value)}
+    const blob=new Blob(chunks);
+    // Preserve the original multipart boundary exactly (it is case-sensitive).
+    let f;
+    try{f=await new Request(req.url,{method:'POST',headers:{'Content-Type':req.headers.get('Content-Type')},body:blob}).formData()}
+    catch{return error('Invalid multipart form data.',400)}
+    if(norm(f.get('company_url')))return reply({ok:true}); // spam trap
+    if(Boolean(env.TURNSTILE_SITE_KEY)!==Boolean(env.TURNSTILE_SECRET_KEY))return error('Security verification is unavailable.',503);
+    if(!(await verifyTurnstile(f.get('turnstile_token'),req,env,url.hostname)))return error('Security verification failed. Please try again.',403);
+    const field=(key,n=180)=>norm(f.get(key),n);
+    const role=field('role',90),name=field('name',120),email=field('email'),phone=field('phone',32),whatsapp=field('whatsapp',32),education=field('education',120),skills=field('skills',1500),country=field('country',2).toUpperCase(),state=field('state',120),district=field('district',120),postal=field('postal_code',18),notes=field('notes',2500);
+    if(!careerRoles.has(role)||name.length<2||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!validCareerPhone(phone)||!validCareerPhone(whatsapp)||!education||!skills||skills.length<2||!/^[A-Z]{2}$/.test(country)||!state||!district||!postal||postal.length<3) return error('Complete all required fields with valid contact and location details.');
+    if(country==='IN'&&!/^[0-9]{6}$/.test(postal))return error('Enter a valid six-digit Indian PIN code.');
+    const file=f.get('cv'),hasFile=file instanceof File&&file.size>0;
+    if(hasFile&&!env.CV_BUCKET)return error('CV storage is not configured. Please contact the team or submit without a CV.',503);
+    const info=hasFile?cvFileInfo(file):null;
+    let cvBytes=null;
+    if(info){cvBytes=new Uint8Array(await file.arrayBuffer());if(!validCvSignature(cvBytes,info.extension))return error('CV file format does not match its extension. Please upload a valid document.',400)}
+    await ensureCareers(env);
+    const ip=await ipHash(req,env);
+    const recent=await first(env.DB,'SELECT COUNT(*) AS n FROM career_applications WHERE ip_hash=? AND created_at>=?',ip,new Date(Date.now()-60*60000).toISOString());
+    if(recent.n>=12)return error('Too many recent applications. Please try again later.',429);
+    const key=info?'careers/cv/'+crypto.randomUUID()+'.'+info.extension:null;
+    if(key){await env.CV_BUCKET.put(key,cvBytes,{httpMetadata:{contentType:info.contentType,contentDisposition:'attachment'},customMetadata:{source:'quartz-career'}})}
+    try{
+      const result=await exec(env.DB,'INSERT INTO career_applications(role,name,email,phone,whatsapp,education,skills,country,state,district,postal_code,notes,cv_key,cv_filename,cv_size,status,created_at,ip_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',role,name,email,phone,whatsapp,education,skills,country,state,district,postal,notes,key,info?.filename||null,info?.filename?file.size:0,'new',now(),ip);
+      return reply({ok:true,id:result.meta?.last_row_id||null,message:'Application received.'},201,{'Cache-Control':'no-store'});
+    }catch(e){if(key)await env.CV_BUCKET.delete(key).catch(()=>{});throw e}
+  }
   const m=url.pathname.match(/^\/api\/public\/shared\/([a-zA-Z0-9_-]{32,100})$/);
   if(m && req.method==='GET') {
     await schema(env);
@@ -337,7 +404,8 @@ async function adminApi(req,env,url) {
   const db=env.DB, path=url.pathname;
   if(path==='/api/admin/summary' && req.method==='GET') {
     const [clients,enquiries]=await Promise.all([getClients(db),first(db,"SELECT COUNT(*) AS total,SUM(CASE WHEN status='new' THEN 1 ELSE 0 END) AS unread FROM enquiries")]);
-    return reply({ok:true,client_count:clients.length,net_total_paise:clients.reduce((v,c)=>v+c.balance_paise,0),enquiry_count:enquiries.total||0,new_enquiry_count:enquiries.unread||0});
+    await ensureCareers(env);const applicants=await first(db,"SELECT COUNT(*) AS total,SUM(CASE WHEN status='new' THEN 1 ELSE 0 END) AS unread FROM career_applications");
+    return reply({ok:true,client_count:clients.length,net_total_paise:clients.reduce((v,c)=>v+c.balance_paise,0),enquiry_count:enquiries.total||0,new_enquiry_count:enquiries.unread||0,application_count:applicants.total||0,new_application_count:applicants.unread||0});
   }
   if(path==='/api/admin/enquiries' && req.method==='GET') {
     const status=url.searchParams.get('status')==='read'?'read':'new';
@@ -350,6 +418,44 @@ async function adminApi(req,env,url) {
   }
   const enquiry=path.match(/^\/api\/admin\/enquiries\/(\d+)\/read$/);
   if(enquiry && req.method==='POST') {const r=await exec(db,"UPDATE enquiries SET status='read',read_at=? WHERE id=? AND status='new'",now(),numId(enquiry[1]));return r.meta.changes?reply({ok:true}):error('New enquiry not found',404);}
+  // Recruitment records are available only through the authenticated admin hostname.
+  if(path==='/api/admin/careers'&&req.method==='GET'){
+    await ensureCareers(env);
+    const rows=await select(db,'SELECT id,role,name,email,phone,whatsapp,education,skills,country,state,district,postal_code,notes,cv_filename,cv_size,status,created_at FROM career_applications ORDER BY created_at DESC,id DESC LIMIT 1500');
+    return reply({ok:true,applications:rows},200,{'Cache-Control':'private,no-store'});
+  }
+  const careerStatus=path.match(/^\/api\/admin\/careers\/(\d+)\/reviewed$/);
+  if(careerStatus&&req.method==='POST'){
+    await ensureCareers(env);
+    const result=await exec(db,"UPDATE career_applications SET status='reviewed' WHERE id=?",numId(careerStatus[1]));
+    return result.meta.changes?reply({ok:true}):error('Application not found',404);
+  }
+  const careerCv=path.match(/^\/api\/admin\/careers\/(\d+)\/cv$/);
+  if(careerCv&&req.method==='GET'){
+    await ensureCareers(env);
+    const row=await first(db,'SELECT cv_key,cv_filename FROM career_applications WHERE id=?',numId(careerCv[1]));
+    if(!row?.cv_key)return error('CV not found',404);
+    if(!env.CV_BUCKET)return error('CV storage binding missing',503);
+    const object=await env.CV_BUCKET.get(row.cv_key);if(!object)return error('CV file not found in storage',404);
+    const name=(row.cv_filename||'applicant-cv').replace(/["\\\r\n]/g,'_');
+    return new Response(object.body,{headers:securityHeaders({'Content-Type':object.httpMetadata?.contentType||'application/octet-stream','Content-Disposition':`attachment; filename="${name.replace(/[^\x20-\x7e]/g,'_')}"; filename*=UTF-8''${encodeURIComponent(name)}`,'Cache-Control':'private, no-store','Content-Security-Policy':"default-src 'none'"})});
+  }
+  const careerDelete=path.match(/^\/api\/admin\/careers\/(\d+)$/);
+  if(careerDelete&&req.method==='DELETE'){
+    await ensureCareers(env);
+    const id=numId(careerDelete[1]),row=await first(db,'SELECT cv_key FROM career_applications WHERE id=?',id);
+    if(!row)return error('Application not found',404);
+    const b=await jsonBody(req);if(b.confirm!=='DELETE FOREVER')return error('Deletion confirmation is required.',400);
+    if(row.cv_key){if(!env.CV_BUCKET)return error('CV storage binding missing. Cannot confirm complete deletion.',503);await env.CV_BUCKET.delete(row.cv_key)}
+    const result=await exec(db,'DELETE FROM career_applications WHERE id=?',id);
+    return result.meta.changes?reply({ok:true}):error('Deletion could not be completed',500);
+  }
+  const enquiryDelete=path.match(/^\/api\/admin\/enquiries\/(\d+)$/);
+  if(enquiryDelete&&req.method==='DELETE'){
+    const b=await jsonBody(req);if(b.confirm!=='DELETE FOREVER')return error('Deletion confirmation is required.',400);
+    const result=await exec(db,'DELETE FROM enquiries WHERE id=?',numId(enquiryDelete[1]));
+    return result.meta.changes?reply({ok:true}):error('Enquiry not found',404);
+  }
   if(path==='/api/admin/clients' && req.method==='GET') return reply({ok:true,clients:await getClients(db)});
   if(path==='/api/admin/clients/full' && req.method==='GET') return reply({ok:true,clients:await getDirectory(db)});
   if(path==='/api/admin/clients' && req.method==='POST') {
@@ -366,6 +472,19 @@ async function adminApi(req,env,url) {
       let c;try{c=clientInput(await jsonBody(req));}catch(e){return error(e.message)}
       await exec(db,'UPDATE clients SET business_name=?,contact_name=?,website_url=?,status=?,email=?,phone=?,whatsapp=?,description=?,notes=?,updated_at=? WHERE id=?',c.business_name,c.contact_name,c.website_url,c.status,c.email,c.phone,c.whatsapp,c.description,c.notes,now(),id);
       return reply({ok:true,client:await getClient(db,id)});
+    }
+    if(req.method==='DELETE'){
+      const b=await jsonBody(req);if(b.confirm!=='DELETE FOREVER')return error('Deletion confirmation is required.',400);
+      if(!(await getClient(db,id)))return error('Client not found',404);
+      // Explicit dependent deletes protect installations with older/migrated foreign-key tables.
+      // D1 batch commits atomically: no orphan access logins, ledger items or client share links.
+      await db.batch([
+        db.prepare('DELETE FROM share_links WHERE client_id=?').bind(id),
+        db.prepare('DELETE FROM client_access WHERE client_id=?').bind(id),
+        db.prepare('DELETE FROM client_payments WHERE client_id=?').bind(id),
+        db.prepare('DELETE FROM clients WHERE id=?').bind(id)
+      ]);
+      return reply({ok:true});
     }
   }
   // Credentials for a client's own website: separately encrypted at rest and admin-only.
@@ -498,7 +617,7 @@ export default {async fetch(req,env) {
     if(mainHost){
       if(url.pathname==='/sitemap.xml') {
         // Static Quartz marketing pages only; no customer-site publishing or SEO engine.
-        const paths=['/','/sabith-salah-kp/','/services/website-development/','/services/web-app-development/','/services/ecommerce-development/','/services/ui-ux-design/','/services/seo-performance/','/services/website-for-shops/','/services/business-websites/','/services/local-seo-websites/','/locations/kerala/','/locations/malappuram/','/locations/calicut/'];
+        const paths=['/','/sabith-salah-kp/','/services/website-development/','/services/web-app-development/','/services/ecommerce-development/','/services/ui-ux-design/','/services/seo-performance/','/services/website-for-shops/','/services/business-websites/','/services/local-seo-websites/','/locations/kerala/','/locations/malappuram/','/locations/calicut/','/careers/','/careers/remote-telecalling-executive/','/careers/remote-business-development-executive/','/careers/remote-web-developer/'];
         return new Response('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+paths.map(s=>`<url><loc>${BASE+s}</loc></url>`).join('')+'</urlset>',{headers:{'Content-Type':'application/xml; charset=UTF-8','Cache-Control':'public,max-age=3600'}});
       }
       // Retire the old published per-client slugs and directory (do not intercept Quartz's own static routes).

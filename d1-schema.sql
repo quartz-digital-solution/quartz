@@ -25,3 +25,8 @@ CREATE INDEX IF NOT EXISTS idx_client_access_client ON client_access(client_id,i
 -- Reserve client IDs starting with #00181 without changing existing references.
 INSERT INTO sqlite_sequence(name,seq) SELECT 'clients',180 WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name='clients');
 UPDATE sqlite_sequence SET seq=180 WHERE name='clients' AND seq<180;
+
+-- Recruitment applications: also created automatically by the Worker (safe on existing D1).
+CREATE TABLE IF NOT EXISTS career_applications (id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, whatsapp TEXT NOT NULL, education TEXT NOT NULL, skills TEXT NOT NULL, country TEXT NOT NULL, state TEXT NOT NULL, district TEXT NOT NULL, postal_code TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', cv_key TEXT, cv_filename TEXT, cv_size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','reviewed')), created_at TEXT NOT NULL, ip_hash TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_career_created ON career_applications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_career_ip ON career_applications(ip_hash,created_at);
