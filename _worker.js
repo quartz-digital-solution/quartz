@@ -46,7 +46,9 @@ async function ensureEnquiries(env) {
   if(enquiriesInFlight)return enquiriesInFlight;
   enquiriesInFlight=(async()=>{
     if(!env.DB)throw Error('Cloudflare D1 binding DB is missing.');
-    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS enquiries (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, project TEXT NOT NULL DEFAULT '', message TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','read')), created_at TEXT NOT NULL, read_at TEXT, ip_hash TEXT NOT NULL DEFAULT '')`).run();
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS enquiries (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '', project TEXT NOT NULL DEFAULT '', message TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','read')), created_at TEXT NOT NULL, read_at TEXT, ip_hash TEXT NOT NULL DEFAULT '')`).run();
+    const enquiryCols=await select(env.DB,'PRAGMA table_info(enquiries)');
+    if(!enquiryCols.some(c=>c.name==='phone'))await env.DB.prepare("ALTER TABLE enquiries ADD COLUMN phone TEXT NOT NULL DEFAULT ''").run();
     await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_enquiries_status ON enquiries(status, created_at DESC)`).run();
     await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_enquiries_ip ON enquiries(ip_hash, created_at)`).run();
     enquiriesReady=true;
@@ -91,7 +93,7 @@ async function initializeSchema(env) {
   if (!env.DB) throw Error('Cloudflare D1 binding DB is missing.');
   // Each prepared statement runs separately: safe for D1, including existing deployments.
   const statements = [
-    `CREATE TABLE IF NOT EXISTS enquiries (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, project TEXT NOT NULL DEFAULT '', message TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','read')), created_at TEXT NOT NULL, read_at TEXT, ip_hash TEXT NOT NULL DEFAULT '')`,
+    `CREATE TABLE IF NOT EXISTS enquiries (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '', project TEXT NOT NULL DEFAULT '', message TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','read')), created_at TEXT NOT NULL, read_at TEXT, ip_hash TEXT NOT NULL DEFAULT '')`,
     `CREATE INDEX IF NOT EXISTS idx_enquiries_status ON enquiries(status, created_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_enquiries_ip ON enquiries(ip_hash, created_at)`,
     `CREATE TABLE IF NOT EXISTS clients (id INTEGER PRIMARY KEY AUTOINCREMENT, business_name TEXT NOT NULL, contact_name TEXT NOT NULL DEFAULT '', website_url TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','maintenance','on_hold','closed')), email TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', whatsapp TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', currency TEXT NOT NULL DEFAULT 'INR', created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
@@ -106,17 +108,28 @@ async function initializeSchema(env) {
     `CREATE TABLE IF NOT EXISTS career_applications (id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, whatsapp TEXT NOT NULL, education TEXT NOT NULL, skills TEXT NOT NULL, country TEXT NOT NULL, state TEXT NOT NULL, district TEXT NOT NULL, postal_code TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', cv_key TEXT, cv_filename TEXT, cv_size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','reviewed')), created_at TEXT NOT NULL, ip_hash TEXT NOT NULL)`,
     `CREATE INDEX IF NOT EXISTS idx_career_created ON career_applications(created_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_career_ip ON career_applications(ip_hash,created_at)`,
+    `CREATE TABLE IF NOT EXISTS employees (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, role TEXT NOT NULL, department TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', whatsapp TEXT NOT NULL DEFAULT '', location TEXT NOT NULL DEFAULT '', employment_type TEXT NOT NULL DEFAULT 'Commission-based', start_date TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','on_leave','inactive')), notes TEXT NOT NULL DEFAULT '', photo_key TEXT, photo_type TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_employee_name ON employees(name)`,
+    `CREATE TABLE IF NOT EXISTS employee_payments (id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE, amount_paise INTEGER NOT NULL CHECK(amount_paise != 0), note TEXT NOT NULL DEFAULT '', paid_at TEXT NOT NULL, created_at TEXT NOT NULL, voided_at TEXT)`,
+    `CREATE INDEX IF NOT EXISTS idx_employee_payments ON employee_payments(employee_id,paid_at DESC)`,
+    `CREATE TABLE IF NOT EXISTS employee_share_links (id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE, token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, revoked_at TEXT)`,
+    `CREATE INDEX IF NOT EXISTS idx_employee_share ON employee_share_links(employee_id,revoked_at)`,
     `CREATE TABLE IF NOT EXISTS client_access (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE, encrypted_data TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
     `CREATE INDEX IF NOT EXISTS idx_client_access_client ON client_access(client_id,id)`,
     `CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at)`
   ];
   for(const stmt of statements) await env.DB.prepare(stmt).run();
   // Forward-compatible migration of existing payment data, without deleting records.
+  const enqcols=await select(env.DB,'PRAGMA table_info(enquiries)');
+  if(!enqcols.some(c=>c.name==='phone'))await env.DB.prepare("ALTER TABLE enquiries ADD COLUMN phone TEXT NOT NULL DEFAULT ''").run();
   const cols=await select(env.DB,'PRAGMA table_info(client_payments)');
   if(!cols.some(c=>c.name==='voided_at')) await env.DB.prepare('ALTER TABLE client_payments ADD COLUMN voided_at TEXT').run();
   const shareCols=await select(env.DB,'PRAGMA table_info(share_links)');
   if(!shareCols.some(c=>c.name==='include_credentials')) await env.DB.prepare('ALTER TABLE share_links ADD COLUMN include_credentials INTEGER NOT NULL DEFAULT 0').run();
   if(!shareCols.some(c=>c.name==='expires_at')) await env.DB.prepare('ALTER TABLE share_links ADD COLUMN expires_at TEXT').run();
+  // Employee and client sequence counters are independent; never renumber older records.
+  await env.DB.prepare("INSERT INTO sqlite_sequence(name,seq) SELECT 'employees',180 WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name='employees')").run();
+  await env.DB.prepare("UPDATE sqlite_sequence SET seq=180 WHERE name='employees' AND seq<180").run();
   // IDs issued from #00181 onwards. Never renumber an existing client or break foreign keys.
   await env.DB.prepare("INSERT INTO sqlite_sequence(name,seq) SELECT 'clients',180 WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name='clients')").run();
   await env.DB.prepare("UPDATE sqlite_sequence SET seq=180 WHERE name='clients' AND seq<180").run();
@@ -283,6 +296,29 @@ async function verifyTurnstile(token,req,env,hostname) {
     return data.success===true && data.hostname===hostname;
   }catch{return false;}
 }
+const employeeColumns=`e.id,e.name,e.role,e.department,e.email,e.phone,e.whatsapp,e.location,e.employment_type,e.start_date,e.status,e.notes,e.photo_key,e.photo_type,e.created_at,e.updated_at,COALESCE((SELECT SUM(amount_paise) FROM employee_payments p WHERE p.employee_id=e.id AND p.voided_at IS NULL),0) AS paid_total_paise,COALESCE((SELECT COUNT(*) FROM employee_payments p WHERE p.employee_id=e.id),0) AS payment_count`;
+const employeePublic=e=>({id:e.id,name:e.name,role:e.role,department:e.department,start_date:e.start_date,status:e.status,photo:Boolean(e.photo_key)});
+const empById=(db,id)=>first(db,`SELECT ${employeeColumns} FROM employees e WHERE e.id=?`,id);
+function employeeInput(b){
+ const name=norm(b.name,130),role=norm(b.role,120),status=norm(b.status||'active',30),email=norm(b.email,180),phone=norm(b.phone,32),whatsapp=norm(b.whatsapp,32),type=norm(b.employment_type||'Commission-based',100),start=norm(b.start_date,10);
+ if(name.length<2||role.length<2)return {error:'Employee name and job title are required.'};
+ if(!['active','on_leave','inactive'].includes(status))return {error:'Invalid employment status.'};
+ if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return {error:'Enter a valid email.'};
+ if(phone&&!validCareerPhone(phone))return {error:'Enter a valid phone number.'};
+ if(whatsapp&&!validCareerPhone(whatsapp))return {error:'Enter a valid WhatsApp number.'};
+ if(start&&!/^\d{4}-\d{2}-\d{2}$/.test(start))return {error:'Enter a valid joining date.'};
+ return {name,role,status,email,phone,whatsapp,employment_type:type,start_date:start,department:norm(b.department,100),location:norm(b.location,180),notes:norm(b.notes,2500)};
+}
+function employeePhotoInfo(file){
+ const ext=String(file.name||'').toLowerCase().split('.').pop();
+ if(!['jpg','jpeg','png','webp'].includes(ext))throw new HttpProblem('Choose a JPG, PNG or WebP profile photo.',415);
+ if(!file.size||file.size>3*1024*1024)throw new HttpProblem('Profile photo must be smaller than 3 MB.',413);
+ return {ext,ct:ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg'};
+}
+function validEmployeePhotoSignature(b,ext){
+ return ext==='png'?[137,80,78,71,13,10,26,10].every((v,i)=>b[i]===v):ext==='webp'?String.fromCharCode(...b.slice(0,4))==='RIFF'&&String.fromCharCode(...b.slice(8,12))==='WEBP':b[0]===255&&b[1]===216&&b[2]===255;
+}
+const photoResponse=o=>new Response(o.body,{headers:securityHeaders({'Content-Type':o.httpMetadata?.contentType||'image/jpeg','Content-Disposition':'inline','Cache-Control':'private,no-store','Content-Security-Policy':"default-src 'none'"})});
 async function publicApi(req,env,url) {
   if(url.pathname==='/api/public/config' && req.method==='GET')
     return reply({ok:true,turnstile_site_key:env.TURNSTILE_SITE_KEY&&env.TURNSTILE_SECRET_KEY?env.TURNSTILE_SITE_KEY:''},200,{'Cache-Control':'no-store'});
@@ -307,13 +343,13 @@ async function publicApi(req,env,url) {
     if(b.company_url) return reply({ok:true}); // honeypot
     if(Boolean(env.TURNSTILE_SITE_KEY)!==Boolean(env.TURNSTILE_SECRET_KEY))return error('Enquiry verification is not configured correctly. Contact the site administrator.',503);
     if(!(await verifyTurnstile(b.turnstile_token,req,env,url.hostname)))return error('Security verification failed. Please refresh and retry.',403);
-    const name=norm(b.name,120),email=norm(b.email,180),project=norm(b.project,180),message=norm(b.message,3500);
-    if(name.length<2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !(project||message)) return error('Please enter a name, valid email and project details.');
+    const name=norm(b.name,120),phone=norm(b.phone,32),project=norm(b.project,180),message=norm(b.message,3500);
+    if(name.length<2 || !validCareerPhone(phone) || !(project||message)) return error('Please enter your name, valid phone number and project details.');
     await ensureEnquiries(env);
     const ip=await ipHash(req,env);
     const hit=await first(env.DB,'SELECT COUNT(*) AS n FROM enquiries WHERE ip_hash=? AND created_at>=?',ip,new Date(Date.now()-15*60000).toISOString());
     if(hit.n>=4) return error('Too many enquiries. Please try again later.',429);
-    const inserted=await exec(env.DB,'INSERT INTO enquiries (name,email,project,message,status,created_at,ip_hash) VALUES (?,?,?,?,?,?,?)',name,email,project,message,'new',now(),ip);
+    const inserted=await exec(env.DB,'INSERT INTO enquiries (name,email,phone,project,message,status,created_at,ip_hash) VALUES (?,?,?,?,?,?,?,?)',name,'',phone,project,message,'new',now(),ip);
     return reply({ok:true,enquiry_id:inserted.meta?.last_row_id??null,message:'Your enquiry has been received.'},201,{'Cache-Control':'no-store'});
   }
   if(url.pathname==='/api/careers/apply'&&req.method==='POST'){
@@ -352,6 +388,21 @@ async function publicApi(req,env,url) {
       const result=await exec(env.DB,'INSERT INTO career_applications(role,name,email,phone,whatsapp,education,skills,country,state,district,postal_code,notes,cv_key,cv_filename,cv_size,status,created_at,ip_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',role,name,email,phone,whatsapp,education,skills,country,state,district,postal,notes,key,info?.filename||null,info?.filename?file.size:0,'new',now(),ip);
       return reply({ok:true,id:result.meta?.last_row_id||null,message:'Application received.'},201,{'Cache-Control':'no-store'});
     }catch(e){if(key)await env.CV_BUCKET.delete(key).catch(()=>{});throw e}
+  }
+  const staff=url.pathname.match(/^\/api\/public\/employees\/([a-zA-Z0-9_-]{32,100})(\/photo)?$/);
+  if(staff&&req.method==='GET'){
+    await schema(env);
+    const link=await first(env.DB,'SELECT employee_id FROM employee_share_links WHERE token_hash=? AND revoked_at IS NULL',await hash(staff[1]));
+    if(!link)return error('This verification link is invalid or revoked.',404);
+    const employee=await empById(env.DB,link.employee_id);
+    if(!employee)return error('Employee record is no longer available.',404);
+    if(staff[2]){
+      if(!employee.photo_key)return error('No profile photo has been uploaded.',404);
+      if(!env.CV_BUCKET)return error('Profile photo storage is unavailable.',503);
+      const object=await env.CV_BUCKET.get(employee.photo_key);
+      return object?photoResponse(object):error('Photo not found.',404);
+    }
+    return reply({ok:true,employee:employeePublic(employee)},200,{'Cache-Control':'private,no-store'});
   }
   const m=url.pathname.match(/^\/api\/public\/shared\/([a-zA-Z0-9_-]{32,100})$/);
   if(m && req.method==='GET') {
@@ -409,7 +460,7 @@ async function adminApi(req,env,url) {
   }
   if(path==='/api/admin/enquiries' && req.method==='GET') {
     const status=url.searchParams.get('status')==='read'?'read':'new';
-    const rows=await select(db,'SELECT id,name,email,project,message,status,created_at,read_at FROM enquiries WHERE status=? ORDER BY created_at DESC LIMIT 1000',status);
+    const rows=await select(db,'SELECT id,name,email,phone,project,message,status,created_at,read_at FROM enquiries WHERE status=? ORDER BY created_at DESC LIMIT 1000',status);
     return reply({ok:true,enquiries:rows});
   }
   if(path==='/api/admin/enquiries/read-all' && req.method==='POST') {
@@ -455,6 +506,83 @@ async function adminApi(req,env,url) {
     const b=await jsonBody(req);if(b.confirm!=='DELETE FOREVER')return error('Deletion confirmation is required.',400);
     const result=await exec(db,'DELETE FROM enquiries WHERE id=?',numId(enquiryDelete[1]));
     return result.meta.changes?reply({ok:true}):error('Enquiry not found',404);
+  }
+  // Private employee directory, commission ledger, badge documents and revocable identity links.
+  if(path==='/api/admin/employees'&&req.method==='GET'){
+    const rows=await select(db,`SELECT ${employeeColumns} FROM employees e ORDER BY e.id DESC LIMIT 2000`);
+    return reply({ok:true,employees:rows});
+  }
+  if(path==='/api/admin/employees'&&req.method==='POST'){
+    const b=employeeInput(await jsonBody(req));if(b.error)return error(b.error);
+    const created=now();
+    const result=await exec(db,'INSERT INTO employees(name,role,department,email,phone,whatsapp,location,employment_type,start_date,status,notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',b.name,b.role,b.department,b.email,b.phone,b.whatsapp,b.location,b.employment_type,b.start_date,b.status,b.notes,created,created);
+    return reply({ok:true,employee:await empById(db,result.meta.last_row_id)},201);
+  }
+  const em=path.match(/^\/api\/admin\/employees\/(\d+)$/);
+  if(em){const id=numId(em[1]);if(!id)return error('Invalid employee ID');
+    const emp=await empById(db,id);if(!emp)return error('Employee not found',404);
+    if(req.method==='GET')return reply({ok:true,employee:emp,payments:await select(db,'SELECT * FROM employee_payments WHERE employee_id=? ORDER BY paid_at DESC,id DESC',id)});
+    if(req.method==='PUT'){
+      const b=employeeInput(await jsonBody(req));if(b.error)return error(b.error);
+      await exec(db,'UPDATE employees SET name=?,role=?,department=?,email=?,phone=?,whatsapp=?,location=?,employment_type=?,start_date=?,status=?,notes=?,updated_at=? WHERE id=?',b.name,b.role,b.department,b.email,b.phone,b.whatsapp,b.location,b.employment_type,b.start_date,b.status,b.notes,now(),id);
+      return reply({ok:true,employee:await empById(db,id)});
+    }
+    if(req.method==='DELETE'){
+      const b=await jsonBody(req);if(b.confirm!=='DELETE FOREVER')return error('Deletion confirmation is required.');
+      if(emp.photo_key){if(!env.CV_BUCKET)return error('Photo storage binding missing. Cannot verify permanent deletion.',503);await env.CV_BUCKET.delete(emp.photo_key)}
+      await db.batch([db.prepare('DELETE FROM employee_share_links WHERE employee_id=?').bind(id),db.prepare('DELETE FROM employee_payments WHERE employee_id=?').bind(id),db.prepare('DELETE FROM employees WHERE id=?').bind(id)]);
+      return reply({ok:true});
+    }
+  }
+  const ep=path.match(/^\/api\/admin\/employees\/(\d+)\/photo$/);
+  if(ep){const id=numId(ep[1]),emp=await empById(db,id);if(!emp)return error('Employee not found',404);
+    if(req.method==='GET'){
+      if(!emp.photo_key)return error('Photo not found.',404);
+      if(!env.CV_BUCKET)return error('Photo storage is unavailable.',503);
+      const obj=await env.CV_BUCKET.get(emp.photo_key);return obj?photoResponse(obj):error('Photo unavailable.',404);
+    }
+    if(req.method==='POST'){
+      if(!env.CV_BUCKET)return error('CV_BUCKET binding is required for employee photos.',503);
+      if(Number(req.headers.get('Content-Length')||0)>3*1024*1024+80000)return error('Upload is too large.',413);
+      if(!/^multipart\/form-data/i.test(req.headers.get('Content-Type')||''))return error('Expected multipart photo upload.',415);
+      const form=await req.formData(),file=form.get('photo');if(!(file instanceof File))return error('Select a photo to upload.');
+      let info;try{info=employeePhotoInfo(file)}catch(e){return error(e.message,e.status||400)}
+      const bytes=new Uint8Array(await file.arrayBuffer());if(!validEmployeePhotoSignature(bytes,info.ext))return error('Invalid photo file contents.',415);
+      const key=`employees/photos/${id}/${crypto.randomUUID()}.${info.ext}`;
+      await env.CV_BUCKET.put(key,bytes,{httpMetadata:{contentType:info.ct},customMetadata:{source:'quartz-employee'}});
+      try{await exec(db,'UPDATE employees SET photo_key=?,photo_type=?,updated_at=? WHERE id=?',key,info.ct,now(),id)}catch(e){await env.CV_BUCKET.delete(key).catch(()=>{});throw e}
+      if(emp.photo_key)await env.CV_BUCKET.delete(emp.photo_key).catch(()=>{});
+      return reply({ok:true});
+    }
+    if(req.method==='DELETE'){
+      if(emp.photo_key){if(!env.CV_BUCKET)return error('Photo storage is unavailable.',503);await env.CV_BUCKET.delete(emp.photo_key)}
+      await exec(db,'UPDATE employees SET photo_key=NULL,photo_type=NULL,updated_at=? WHERE id=?',now(),id);
+      return reply({ok:true});
+    }
+  }
+  const emPay=path.match(/^\/api\/admin\/employees\/(\d+)\/payments$/);
+  if(emPay&&req.method==='POST'){
+    const id=numId(emPay[1]);if(!(await empById(db,id)))return error('Employee not found',404);
+    const b=await jsonBody(req);let amount,dt;
+    try{amount=parseAmount(b.amount);dt=parseDate(b.paid_at)}catch(e){return error(e.message)}
+    const note=norm(b.note,500),created=now();
+    await exec(db,'INSERT INTO employee_payments(employee_id,amount_paise,note,paid_at,created_at) VALUES(?,?,?,?,?)',id,amount,note,dt.paid_at,created);
+    return reply({ok:true},201);
+  }
+  const voidPay=path.match(/^\/api\/admin\/employees\/(\d+)\/payments\/(\d+)$/);
+  if(voidPay&&req.method==='DELETE'){
+    const id=numId(voidPay[1]),payment=numId(voidPay[2]);
+    const r=await exec(db,'UPDATE employee_payments SET voided_at=? WHERE employee_id=? AND id=? AND voided_at IS NULL',now(),id,payment);
+    return r.meta.changes?reply({ok:true}):error('Active payment not found',404);
+  }
+  const emShare=path.match(/^\/api\/admin\/employees\/(\d+)\/share$/);
+  if(emShare){const id=numId(emShare[1]),emp=await empById(db,id);if(!emp)return error('Employee not found',404);
+    if(req.method==='POST'){
+      const raw=b64url(crypto.getRandomValues(new Uint8Array(32)));
+      await db.batch([db.prepare('UPDATE employee_share_links SET revoked_at=? WHERE employee_id=? AND revoked_at IS NULL').bind(now(),id),db.prepare('INSERT INTO employee_share_links(employee_id,token_hash,created_at) VALUES(?,?,?)').bind(id,await hash(raw),now())]);
+      return reply({ok:true,url:`${BASE}/verify/?token=${encodeURIComponent(raw)}`});
+    }
+    if(req.method==='DELETE'){const r=await exec(db,'UPDATE employee_share_links SET revoked_at=? WHERE employee_id=? AND revoked_at IS NULL',now(),id);return reply({ok:true,revoked:r.meta.changes||0})}
   }
   if(path==='/api/admin/clients' && req.method==='GET') return reply({ok:true,clients:await getClients(db)});
   if(path==='/api/admin/clients/full' && req.method==='GET') return reply({ok:true,clients:await getDirectory(db)});

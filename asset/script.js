@@ -121,7 +121,7 @@ if (enquiryForm) enquiryForm.addEventListener('submit', async event => {
     const status = document.getElementById('enquiryStatus');
     const payload = {
         name: document.getElementById('name').value.trim(),
-        email: document.getElementById('email').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
         project: document.getElementById('project').value.trim(),
         message: document.getElementById('message').value.trim(),
         company_url: document.getElementById('company_url').value,

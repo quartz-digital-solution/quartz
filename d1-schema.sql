@@ -1,6 +1,6 @@
 -- Quartz CRM v2. Run once on Cloudflare D1, or let the Worker create tables.
 -- Amounts are stored as integer paise (100 paise = Rs.1), with signed adjustments.
-CREATE TABLE IF NOT EXISTS enquiries (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, project TEXT NOT NULL DEFAULT '', message TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','read')), created_at TEXT NOT NULL, read_at TEXT, ip_hash TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS enquiries (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '', project TEXT NOT NULL DEFAULT '', message TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','read')), created_at TEXT NOT NULL, read_at TEXT, ip_hash TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS idx_enquiries_status ON enquiries(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_enquiries_ip ON enquiries(ip_hash, created_at);
 CREATE TABLE IF NOT EXISTS clients (id INTEGER PRIMARY KEY AUTOINCREMENT, business_name TEXT NOT NULL, contact_name TEXT NOT NULL DEFAULT '', website_url TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','maintenance','on_hold','closed')), email TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', whatsapp TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', currency TEXT NOT NULL DEFAULT 'INR', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -30,3 +30,14 @@ UPDATE sqlite_sequence SET seq=180 WHERE name='clients' AND seq<180;
 CREATE TABLE IF NOT EXISTS career_applications (id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, whatsapp TEXT NOT NULL, education TEXT NOT NULL, skills TEXT NOT NULL, country TEXT NOT NULL, state TEXT NOT NULL, district TEXT NOT NULL, postal_code TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', cv_key TEXT, cv_filename TEXT, cv_size INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','reviewed')), created_at TEXT NOT NULL, ip_hash TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_career_created ON career_applications(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_career_ip ON career_applications(ip_hash,created_at);
+
+-- Existing enquiry tables auto-migrate to add phone. Existing enquiries keep their email values.
+-- Employees and compensation: Worker also creates these automatically.
+CREATE TABLE IF NOT EXISTS employees(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,role TEXT NOT NULL,department TEXT NOT NULL DEFAULT '',email TEXT NOT NULL DEFAULT '',phone TEXT NOT NULL DEFAULT '',whatsapp TEXT NOT NULL DEFAULT '',location TEXT NOT NULL DEFAULT '',employment_type TEXT NOT NULL DEFAULT 'Commission-based',start_date TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','on_leave','inactive')),notes TEXT NOT NULL DEFAULT '',photo_key TEXT,photo_type TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_employee_name ON employees(name);
+CREATE TABLE IF NOT EXISTS employee_payments(id INTEGER PRIMARY KEY AUTOINCREMENT,employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,amount_paise INTEGER NOT NULL CHECK(amount_paise!=0),note TEXT NOT NULL DEFAULT '',paid_at TEXT NOT NULL,created_at TEXT NOT NULL,voided_at TEXT);
+CREATE INDEX IF NOT EXISTS idx_employee_payments ON employee_payments(employee_id,paid_at DESC);
+CREATE TABLE IF NOT EXISTS employee_share_links(id INTEGER PRIMARY KEY AUTOINCREMENT,employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,token_hash TEXT NOT NULL UNIQUE,created_at TEXT NOT NULL,revoked_at TEXT);
+CREATE INDEX IF NOT EXISTS idx_employee_share ON employee_share_links(employee_id,revoked_at);
+INSERT INTO sqlite_sequence(name,seq) SELECT 'employees',180 WHERE NOT EXISTS(SELECT 1 FROM sqlite_sequence WHERE name='employees');
+UPDATE sqlite_sequence SET seq=180 WHERE name='employees' AND seq<180;
