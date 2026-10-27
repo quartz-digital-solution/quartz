@@ -39,7 +39,7 @@
    <div id="employeeRows" class="employee-list"></div>
   </section>
   <section id="employeeView" class="view hidden">
-   <div class="detail-bar"><button class="back-link" id="backEmployees">← All employees</button><div><button class="outline" id="employeeDocBtn">↓ Verification PDF</button><button class="outline" id="employeeCardBtn">↓ Print ID card</button><button class="outline" id="employeeDpBtn">↓ Profile badge PNG</button><button class="tiny destructive" id="employeeDeleteBtn">Delete forever</button></div></div>
+   <div class="detail-bar"><button class="back-link" id="backEmployees">← All employees</button><div><button class="outline" id="employeeDocBtn">↓ Verification PDF</button><button class="outline" id="employeeCardBtn">↓ Print ID card</button><button class="outline" id="employeeDpBtn">↓ Profile badge SVG</button><button class="tiny destructive" id="employeeDeleteBtn">Delete forever</button></div></div>
    <div class="page-heading"><div><div class="eyebrow">QUARTZ / EMPLOYEE <span id="employeeNumber">#00181</span></div><h1 id="employeeTitle">Employee profile</h1><p id="employeeSubtitle">Identity and payment records</p></div><div id="employeePaid" class="balance-pill">₹0.00</div></div>
    <div class="employee-top-grid">
     <div class="panel employee-photo-panel"><div class="eyebrow">EMPLOYEE IDENTITY</div><div id="employeeAvatar" class="employee-avatar"></div><strong id="employeeAvatarName">Employee</strong><div class="employee-role-pill" id="employeeAvatarRole">Team member</div><div class="muted" id="employeeStatusText">Active</div><label class="outline employee-photo-choose">↑ Upload profile photo <input id="employeePhoto" type="file" accept="image/jpeg,image/png,image/webp" hidden></label><button class="tiny" id="employeeRemovePhoto" type="button">Remove photo</button><small class="subtle">Square or portrait photo · JPG, PNG or WebP · max 3 MB. Stored privately.</small></div>
@@ -86,5 +86,5 @@
  <h2 id="shareChoiceTitle">Include client access details?</h2><p>Choose whether this individual client document or link should include saved login IDs and passwords. Only send credentials to an authorized recipient. Links containing credentials expire automatically after 24 hours.</p>
  <div class="choice-actions"><button type="button" id="shareChoiceNo" class="outline">No, keep private</button><button type="button" id="shareChoiceYes" class="primary">Yes, include access</button></div>
  </div></div>
-<script src="/asset/pdf-export.js?v=5"></script><script src="/asset/employee-docs.js" defer></script><script src="/admin/admin.js" defer></script><script src="/admin/employees.js" defer></script>
+<script src="/asset/pdf-export.js?v=5"></script><script src="/asset/vector-export.js" defer></script><script src="/asset/employee-docs.js" defer></script><script src="/admin/admin.js" defer></script><script src="/admin/employees.js" defer></script>
 </body></html>

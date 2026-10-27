@@ -3,7 +3,7 @@
 const LOGO='/asset/img/logo/quartz-web-solutions-logo-transparent.png';
 const COLORS={ink:'#101824',muted:'#627081',rose:'#e82e4b',light:'#f7f8fa',line:'#dce1e7',white:'#ffffff'};
 const empCode=e=>String(e.id).padStart(5,'0');
-function canvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return [c,c.getContext('2d')];}
+function canvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return [c,QuartzVectorExport.setup(c)];}
 function text(ctx,str,x,y,font,color='#101824',align='left'){ctx.font=font;ctx.fillStyle=color;ctx.textAlign=align;ctx.fillText(String(str||''),x,y);ctx.textAlign='left';}
 function fit(ctx,str,max,width=600){str=String(str||'');let n=max;while(n>18){ctx.font=`800 ${n}px Arial, sans-serif`;if(ctx.measureText(str).width<=width)break;n-=2;}return `800 ${n}px Arial, sans-serif`}
 function round(ctx,x,y,w,h,r,color){r=Math.max(0,Math.min(r,w/2,h/2));ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
@@ -31,7 +31,7 @@ function caps(v){return (v||'').replace(/_/g,' ').replace(/\b[a-z]/g,c=>c.toUppe
 function status(e){return e.status==='active'?'ACTIVE TEAM MEMBER':e.status==='on_leave'?'ON LEAVE':'INACTIVE RECORD';}
 function save(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),15000)}
 function basePortrait(w,h){let [c,g]=canvas(w,h);g.imageSmoothingEnabled=true;g.imageSmoothingQuality='high';g.fillStyle='#fff';g.fillRect(0,0,w,h);return [c,g]}
-async function badgePNG(e,photoURL){const i=await images(e,photoURL),[c,g]=canvas(1080,1080);
+async function badgeSVG(e,photoURL){const i=await images(e,photoURL),[c,g]=canvas(1080,1080);
  const bg=g.createLinearGradient(0,0,1080,1080);bg.addColorStop(0,'#18202e');bg.addColorStop(1,'#080c14');g.fillStyle=bg;g.fillRect(0,0,1080,1080);
  g.strokeStyle='#323a48';g.lineWidth=2;g.beginPath();g.arc(950,130,430,0,Math.PI*2);g.stroke();g.beginPath();g.arc(80,980,520,0,Math.PI*2);g.stroke();round(g,0,0,1080,18,0,COLORS.rose);
  logo(g,i.logo,68,63,72);text(g,'QUARTZ WEB SOLUTIONS',154,109,'800 27px Arial','#ffffff');text(g,'OFFICIAL TEAM PROFILE',157,143,'600 16px Arial','#9da5b4');
@@ -39,7 +39,7 @@ async function badgePNG(e,photoURL){const i=await images(e,photoURL),[c,g]=canva
  text(g,e.name,540,823,fit(g,e.name,54,920),'#fff','center');
  round(g,90,858,900,100,45,'#e82e4b');text(g,String(e.role||'TEAM MEMBER').toUpperCase(),540,923,fit(g,String(e.role||'TEAM MEMBER').toUpperCase(),36,830),'#fff','center');
  text(g,`EMPLOYEE #${empCode(e)}   •   ${status(e)}`,540,1009,'700 21px Arial','#bec4cf','center');
- return new Promise(resolve=>c.toBlob(b=>{if(b)save(b,`quartz-${empCode(e)}-profile-badge.png`);resolve()},'image/png'));
+ save(new Blob([QuartzVectorExport.toSVG(c)],{type:'image/svg+xml;charset=utf-8'}),`quartz-${empCode(e)}-profile-badge.svg`);
 }
 function doc(e,i,publicMode){let [c,g]=basePortrait(1240,1754);const w=1240;
  g.fillStyle=COLORS.ink;g.fillRect(0,0,w,248);g.fillStyle=COLORS.rose;g.fillRect(0,242,w,7);
@@ -75,26 +75,7 @@ function idCardBack(e,i,verifyURL){let [c,g]=canvas(638,1010);g.fillStyle='#fff'
  text(g,'PUBLIC VERIFICATION',46,858,'800 16px Arial',COLORS.rose);paragraph(g,verifyURL||'Verification link available from Quartz administration.',46,895,540,14,19,'#455366');
  text(g,'This is a company-issued ID, not a government ID.',319,972,'15px Arial',COLORS.muted,'center');return c;
 }
-function pdfBlob(canvases,sizes){const E=new TextEncoder(),chunks=[],positions=[],parts=[];let cursor=0;
- const append=arr=>{chunks.push(arr);cursor+=arr.byteLength};const ascii=v=>append(E.encode(v));
- const object=(id,fn)=>{positions[id]=cursor;ascii(`${id} 0 obj\n`);fn();ascii('\nendobj\n')};
- ascii('%PDF-1.4\n% Quartz employee identity\n');
- const pages=[];let ix=3;
- for(let n=0;n<canvases.length;n++){
-  let c=canvases[n],pt=sizes[n],imgID=ix++,contentID=ix++,pageID=ix++;pages.push(pageID);
-  const raw=atob(c.toDataURL('image/jpeg',.93).split(',')[1]),bytes=Uint8Array.from(raw,k=>k.charCodeAt(0));
-  object(imgID,()=>{ascii(`<< /Type /XObject /Subtype /Image /Width ${c.width} /Height ${c.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${bytes.length} >>\nstream\n`);append(bytes);ascii('\nendstream')});
-  const stream=`q\n${pt[0].toFixed(3)} 0 0 ${pt[1].toFixed(3)} 0 0 cm\n/Im1 Do\nQ\n`;
-  object(contentID,()=>ascii(`<< /Length ${E.encode(stream).length} >>\nstream\n${stream}endstream`));
-  object(pageID,()=>ascii(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pt[0].toFixed(3)} ${pt[1].toFixed(3)}] /Resources << /XObject << /Im1 ${imgID} 0 R >> >> /Contents ${contentID} 0 R >>`));
- }
- object(1,()=>ascii('<< /Type /Catalog /Pages 2 0 R >>'));
- object(2,()=>ascii(`<< /Type /Pages /Kids [${pages.map(x=>x+' 0 R').join(' ')}] /Count ${pages.length} >>`));
- const start=cursor;ascii(`xref\n0 ${ix}\n0000000000 65535 f \n`);for(let id=1;id<ix;id++)ascii(`${String(positions[id]).padStart(10,'0')} 00000 n \n`);
- ascii(`trailer\n<< /Size ${ix} /Root 1 0 R >>\nstartxref\n${start}\n%%EOF`);
- return new Blob(chunks,{type:'application/pdf'});
-}
-async function documentPDF(e,photoURL,publicMode=false){const i=await images(e,photoURL),file=pdfBlob([doc(e,i,publicMode)],[[595.28,841.89]]);save(file,`quartz-${empCode(e)}-employee-verification.pdf`)}
-async function idCardPDF(e,photoURL,verificationURL=''){const i=await images(e,photoURL),p=pdfBlob([idCardFront(e,i),idCardBack(e,i,verificationURL)],[[153.07,242.65],[153.07,242.65]]);save(p,`quartz-${empCode(e)}-print-id-card.pdf`)}
-window.QuartzEmployeeDocs={badgePNG,documentPDF,idCardPDF};
+async function documentPDF(e,photoURL,publicMode=false){const i=await images(e,photoURL),file=await QuartzVectorExport.toPDF([doc(e,i,publicMode)],[[595.28,841.89]]);save(file,`quartz-${empCode(e)}-employee-verification.pdf`)}
+async function idCardPDF(e,photoURL,verificationURL=''){const i=await images(e,photoURL),p=await QuartzVectorExport.toPDF([idCardFront(e,i),idCardBack(e,i,verificationURL)],[[153.07,242.65],[153.07,242.65]]);save(p,`quartz-${empCode(e)}-print-id-card.pdf`)}
+window.QuartzEmployeeDocs={badgeSVG,documentPDF,idCardPDF};
 })();

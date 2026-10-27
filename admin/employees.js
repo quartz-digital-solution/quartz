@@ -41,4 +41,4 @@ $('#employeeRevokeBtn').addEventListener('click',async()=>{if(!employee||!confir
 async function exportEmployee(btn,fn){if(!employee)return;btn.disabled=true;try{await fn(employee,employeePhotoURL(employee));toast('Employee file downloaded.')}catch(e){toast('Document generation failed: '+e.message,true)}finally{btn.disabled=false}}
 $('#employeeDocBtn').addEventListener('click',()=>exportEmployee($('#employeeDocBtn'),(e,photo)=>QuartzEmployeeDocs.documentPDF(e,photo,false)));
 $('#employeeCardBtn').addEventListener('click',()=>exportEmployee($('#employeeCardBtn'),(e,photo)=>QuartzEmployeeDocs.idCardPDF(e,photo,employeeVerificationLink||'')));
-$('#employeeDpBtn').addEventListener('click',()=>exportEmployee($('#employeeDpBtn'),(e,photo)=>QuartzEmployeeDocs.badgePNG(e,photo)));
+$('#employeeDpBtn').addEventListener('click',()=>exportEmployee($('#employeeDpBtn'),(e,photo)=>QuartzEmployeeDocs.badgeSVG(e,photo)));

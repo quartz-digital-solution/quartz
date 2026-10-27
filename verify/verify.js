@@ -13,5 +13,5 @@ async function init(){if(!token||!(/^[A-Za-z0-9_-]{32,100}$/).test(token)){showE
 async function getDocument(e,action){const b=document.querySelector('#'+e);b.disabled=true;try{await action(person,photoUrl)}catch(x){alert('Unable to generate document: '+x.message)}finally{b.disabled=false}}
 document.querySelector('#verifyDoc').addEventListener('click',()=>getDocument('verifyDoc',(p,img)=>QuartzEmployeeDocs.documentPDF(p,img,true)));
 document.querySelector('#verifyCard').addEventListener('click',()=>getDocument('verifyCard',(p,img)=>QuartzEmployeeDocs.idCardPDF(p,img,location.href)));
-document.querySelector('#verifyBadge').addEventListener('click',()=>getDocument('verifyBadge',(p,img)=>QuartzEmployeeDocs.badgePNG(p,img)));
+document.querySelector('#verifyBadge').addEventListener('click',()=>getDocument('verifyBadge',(p,img)=>QuartzEmployeeDocs.badgeSVG(p,img)));
 init();
