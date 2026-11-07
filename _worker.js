@@ -720,12 +720,69 @@ async function adminApi(req,env,url) {
   return error('API route not found',404);
 }
 
+
+// Independent telecalling list. All records and access grants are stored in D1.
+async function callSchema(db){
+ await db.prepare(`CREATE TABLE IF NOT EXISTS call_leads (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,phone TEXT NOT NULL DEFAULT '',whatsapp TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'Pending',callback_at TEXT,notes TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,updated_at TEXT NOT NULL)`).run();
+ await db.prepare(`CREATE TABLE IF NOT EXISTS call_grants (id INTEGER PRIMARY KEY CHECK(id=1),token_hash TEXT NOT NULL,created_at TEXT NOT NULL)`).run();
+ await db.prepare('CREATE INDEX IF NOT EXISTS idx_call_callback ON call_leads(callback_at)').run();
+}
+async function callsApi(req,env,url){
+ if(url.hostname!=='admin.quartzwebsolutions.com')return error('Not found',404);
+ if(!['GET','POST','PUT','DELETE'].includes(req.method))return error('Method not allowed',405);
+ const origin=req.headers.get('Origin');if(origin&&origin!==ADMIN)return error('Invalid origin',403);
+ if(req.method!=='GET'&&req.headers.get('Sec-Fetch-Site')==='cross-site')return error('Forbidden',403);
+ if(req.method!=='GET'&&!origin&&req.headers.get('Sec-Fetch-Site')!=='same-origin')return error('Invalid request origin',403);
+ const isOwner=await isAdmin(req,env);
+ const token=url.pathname.match(/^\/api\/calls\/shared\/([A-Za-z0-9_-]{43})(?:\/|$)/)?.[1];
+ if(!isOwner){
+   if(!token)return error('Admin login required',401);
+   await callSchema(env.DB);
+   const grant=await first(env.DB,'SELECT token_hash FROM call_grants WHERE id=1');
+   if(!grant||!constantTimeEq(grant.token_hash,await hash(token)))return error('This sharing link has been revoked',403);
+ }
+ await callSchema(env.DB);
+ const path=url.pathname.replace(/^\/api\/calls\/shared\/[A-Za-z0-9_-]{43}/,'/api/calls');
+ if(path==='/api/calls'&&req.method==='GET')return reply({ok:true,owner:isOwner,leads:await select(env.DB,'SELECT * FROM call_leads ORDER BY id DESC')});
+ if(path==='/api/calls/share'&&req.method==='POST'){
+   if(!isOwner)return error('Admin only',403);
+   const bytes=crypto.getRandomValues(new Uint8Array(32));const newToken=b64url(bytes);
+   await exec(env.DB,'INSERT INTO call_grants(id,token_hash,created_at) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET token_hash=excluded.token_hash,created_at=excluded.created_at',await hash(newToken),now());
+   return reply({ok:true,url:ADMIN+'/calls/s/'+newToken+'/'});
+ }
+ if(path==='/api/calls'&&req.method==='POST'){
+   const b=await jsonBody(req);const name=norm(b.name,120),phone=norm(b.phone,32);
+   if(!name)return error('Name required');
+   const r=await exec(env.DB,'INSERT INTO call_leads(name,phone,whatsapp,status,callback_at,notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',name,phone,norm(b.whatsapp,32),'Pending',null,norm(b.notes,2000),now(),now());
+   return reply({ok:true,id:r.meta.last_row_id});
+ }
+ const match=path.match(/^\/api\/calls\/(\d+)$/);
+ if(match&&req.method==='PUT'){
+   const id=numId(match[1]);if(!id)return error('Invalid ID');
+   const old=await first(env.DB,'SELECT * FROM call_leads WHERE id=?',id);if(!old)return error('Not found',404);
+   const b=await jsonBody(req);const full=b.full===true;
+   const statuses=['Pending','Closed','Call back','WhatsApp','No answer','Interested','Not interested'];
+   const status=norm(b.status??old.status,40);if(!statuses.includes(status))return error('Invalid status');
+   const callback=b.callback_at===null?'':norm(b.callback_at??old.callback_at,35);
+   if(callback&&!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(callback))return error('Invalid callback date');
+   const name=full?norm(b.name,120):old.name;if(!name)return error('Name required');
+   await exec(env.DB,'UPDATE call_leads SET name=?,phone=?,whatsapp=?,status=?,callback_at=?,notes=?,updated_at=? WHERE id=?',name,full?norm(b.phone,32):old.phone,full?norm(b.whatsapp,32):old.whatsapp,status,callback||null,full?norm(b.notes,2000):old.notes,now(),id);
+   return reply({ok:true});
+ }
+ if(match&&req.method==='DELETE'){
+   if(!isOwner)return error('Only admin can delete leads',403);
+   await exec(env.DB,'DELETE FROM call_leads WHERE id=?',numId(match[1]));return reply({ok:true});
+ }
+ return error('Not found',404);
+}
+
 export default {async fetch(req,env) {
   const url=new URL(req.url);
   try {
     const adminHost=url.hostname==='admin.quartzwebsolutions.com';
     const mainHost=['quartzwebsolutions.com','www.quartzwebsolutions.com'].includes(url.hostname);
     if(url.hostname==='www.quartzwebsolutions.com'){url.hostname='quartzwebsolutions.com';return Response.redirect(url.toString(),301);}
+    if(url.pathname.startsWith('/api/calls')) return await callsApi(req,env,url);
     if(url.pathname.startsWith('/api/admin/')) return await adminApi(req,env,url);
     if(url.pathname.startsWith('/api/')) return mainHost ? await publicApi(req,env,url) : error('Not found',404);
     if(mainHost && url.pathname.startsWith('/admin')) return Response.redirect(ADMIN+'/',302);
@@ -737,6 +794,7 @@ export default {async fetch(req,env) {
     if(mainHost && url.pathname==='/businesses' || mainHost && url.pathname.startsWith('/businesses/')) return Response.redirect(BASE+'/',301);
     // Never let the public domain expose the private admin assets.
     if(adminHost){
+      if(/^\/calls\/s\/[A-Za-z0-9_-]{43}\/?$/.test(url.pathname)){const r=await env.ASSETS.fetch(new Request(ADMIN+'/calls/'));return assetResponse(r,url,'admin');}
       const reqUrl=new URL(req.url);if(reqUrl.pathname==='/')reqUrl.pathname='/admin/';
       // Admin assets are only delivered on admin hostname with a strict CSP.
       const r=await env.ASSETS.fetch(new Request(reqUrl,req));
